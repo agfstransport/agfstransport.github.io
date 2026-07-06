@@ -389,7 +389,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <span>AGFS Transport — Fleet & Driver Master</span>
     </div>
     <div class="topbar-right">
-      <button onclick="refreshData()" id="refreshBtn" title="Sync latest data from Google Sheet" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:6px;color:#cbd5e1;padding:5px 10px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:5px;"><i class="ti ti-refresh" aria-hidden="true"></i></button>
+      <button onclick="refreshData()" id="refreshBtn" title="Sync latest data from Google Sheet" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);border:none;border-radius:6px;color:#fff;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;box-shadow:0 2px 8px rgba(124,58,237,0.3);"><i class="ti ti-refresh" aria-hidden="true" style="font-size:13px;"></i> Sync</button>
       <div id="connIndicator" title="Checking connection..." style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:4px 10px 4px 8px;cursor:pointer;" onclick="checkConnection(true)">
         <span id="connDot" style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0;transition:background 0.2s;"></span>
         <span id="connLabel" style="font-size:10px;color:#cbd5e1;font-weight:600;">Checking…</span>
@@ -659,6 +659,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="stat-card" onclick="generateReport('driver-permits')"><div class="sc-label">Driver Permits</div><div class="sc-val" style="font-size:18px;">🪪</div><div class="sc-sub">All driver permit records</div></div>
       <div class="stat-card" onclick="generateReport('permit-expiry')"><div class="sc-label">Permit Expiry Alert</div><div class="sc-val" style="font-size:18px;">⚠️</div><div class="sc-sub">Expiring or expired permits</div></div>
       <div class="stat-card" onclick="generateReport('fleet-permit-alert')"><div class="sc-label">Fleet Permit Alert</div><div class="sc-val" style="font-size:18px;">🚨</div><div class="sc-sub">Fleet permits expiring or expired</div></div>
+      <div class="stat-card" onclick="generateReport('job-code')"><div class="sc-label">Fleet by Job Code</div><div class="sc-val" style="font-size:18px;">🔖</div><div class="sc-sub">Vehicles grouped by job code</div></div>
       <div class="stat-card" onclick="generateReport('driver-class')"><div class="sc-label">Drivers by Class</div><div class="sc-val" style="font-size:18px;">🏋️</div><div class="sc-sub">Heavy vs Light drivers</div></div>
       <div class="stat-card" onclick="generateReport('driver-type')"><div class="sc-label">Drivers by Type</div><div class="sc-val" style="font-size:18px;">🏢</div><div class="sc-sub">Inhouse vs Outsource</div></div>
     </div>
@@ -675,7 +676,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
       <!-- FLEET PERMIT SUMMARY CARDS -->
       <div>
-        <div class="section-hd"><h2>🚗 Fleet Permits</h2><div class="line"></div><div class="hd-btn"><button class="btn btn-primary btn-sm" onclick="openPermitModal('fleet')">+ Add Fleet Permit</button></div></div>
+        <div class="section-hd"><h2>🚗 Fleet Permits</h2><div class="line"></div><div class="hd-btn"><button class="btn btn-ghost btn-sm" onclick="openPermitImportModal('fleet')">⬆ Import CSV</button><button class="btn btn-primary btn-sm" onclick="openPermitModal('fleet')">+ Add Fleet Permit</button></div></div>
         <div id="fleetPermitAlerts"></div>
         <div class="card">
           <div class="card-head">
@@ -707,7 +708,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
       <!-- DRIVER PERMIT SUMMARY CARDS -->
       <div>
-        <div class="section-hd"><h2>👤 Driver Permits</h2><div class="line"></div><div class="hd-btn"><button class="btn btn-primary btn-sm" onclick="openPermitModal('driver')">+ Add Driver Permit</button></div></div>
+        <div class="section-hd"><h2>👤 Driver Permits</h2><div class="line"></div><div class="hd-btn"><button class="btn btn-ghost btn-sm" onclick="openPermitImportModal('driver')">⬆ Import CSV</button><button class="btn btn-primary btn-sm" onclick="openPermitModal('driver')">+ Add Driver Permit</button></div></div>
         <div id="driverPermitAlerts"></div>
         <div class="card">
           <div class="card-head">
@@ -1123,6 +1124,37 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('permitModal')">Cancel</button>
       <button class="btn btn-primary" onclick="savePermit()">💾 Save Permit</button>
+    </div>
+  </div>
+</div>
+
+<!-- PERMIT IMPORT MODAL -->
+<div class="modal-ov" id="permitImportModal">
+  <div class="modal" style="min-width:480px;">
+    <div class="modal-hd"><h2 id="permitImportTitle">Import Fleet Permits CSV</h2><button class="m-close" onclick="closeModal('permitImportModal')">✕</button></div>
+    <div class="modal-body">
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#0369a1;">
+        <strong>Required columns:</strong> <code>ref</code> (Plate/Driver) · <code>permitNo</code> · <code>startDate</code> · <code>endDate</code><br>
+        <strong>Optional:</strong> <code>permitName</code> (Asateel/RTA) · <code>region</code> · <code>notes</code><br>
+        Dates format: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code>
+      </div>
+      <div class="fg">
+        <label>Upload CSV File</label>
+        <div style="border:2px dashed #cbd5e1;border-radius:8px;padding:20px;text-align:center;background:#f8fafc;cursor:pointer;" onclick="document.getElementById('permitImportFile').click()" id="permitImportZone">
+          <div style="font-size:28px;margin-bottom:6px;">📂</div>
+          <div style="font-size:13px;font-weight:600;color:#374151;">Click to choose a CSV file</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px;" id="permitImportFileName">No file chosen</div>
+        </div>
+        <input type="file" id="permitImportFile" accept=".csv" onchange="previewPermitImport(this)" style="display:none;">
+      </div>
+      <div id="permitImportPreview" style="display:none;margin-top:10px;">
+        <div style="font-size:12px;color:#15803d;font-weight:600;" id="permitImportCount"></div>
+        <div style="font-size:11px;color:#dc2626;" id="permitImportErrors"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('permitImportModal')">Cancel</button>
+      <button class="btn btn-primary" id="permitImportBtn" onclick="confirmPermitImport()" disabled style="opacity:0.4;cursor:not-allowed;">⬆ Import Permits</button>
     </div>
   </div>
 </div>
@@ -3317,21 +3349,29 @@ function saveUser() {
   if (editingUserId) {
     const idx = users.findIndex(u=>u.id===editingUserId);
     if (idx < 0) { alert('User not found.'); return; }
-    // Check if ID is being changed
     if (id !== editingUserId) {
       if (users.find(u => u.id === id)) { alert('Employee ID "' + id + '" is already taken by another user.'); return; }
-      // If changing own ID, update session
       if (editingUserId === currentUser.id) {
         currentUser.id = id;
         localStorage.setItem('agfsSession', JSON.stringify({ id, name: currentUser.name, role: currentUser.role }));
         document.getElementById('userRoleDisp').textContent = role.toUpperCase();
       }
     }
+    const oldUser = users[idx];
+    // Log each changed field to change log
+    const changes = [];
+    if (oldUser.name !== name) changes.push({field:'name', label:'Name', oldVal:oldUser.name, newVal:name});
+    if (oldUser.id !== id) changes.push({field:'id', label:'Employee ID', oldVal:oldUser.id, newVal:id});
+    if (oldUser.role !== role) changes.push({field:'role', label:'Role', oldVal:oldUser.role, newVal:role});
+    if (oldUser.dept !== dept) changes.push({field:'dept', label:'Department', oldVal:oldUser.dept||'', newVal:dept});
+    if (pw) changes.push({field:'pw', label:'Password', oldVal:'***', newVal:'Updated'});
+    if (changes.length) logChange('user', 'Updated', id, name, changes);
     users[idx] = { ...users[idx], id, name, role, dept, email };
     if (pw) users[idx].pw = pw;
   } else {
     if (!pw) { alert('Password is required for new users.'); return; }
     users.push({ id, name, pw, role, dept, email, active:true });
+    logChange('user', 'Added', id, name, [{field:'ALL', label:'New User', oldVal:'', newVal:`${name} (${role})`}]);
   }
   saveUsers(users);
   closeModal('userModal');
@@ -3478,6 +3518,7 @@ const PERMIT_CONFIGURABLE_FIELDS = [
 ];
 
 const FLEET_CONFIGURABLE_FIELDS = [
+  { key:'make', label:'Make / Model', defaultType:'select', defaultOpts:['Toyota Hilux','Toyota Land Cruiser','Toyota Prado','Nissan Patrol','Nissan Navara','Ford Ranger','Mitsubishi L200','Isuzu D-Max','GMC Sierra','Chevrolet Silverado','Hyundai H100','Toyota Hiace','Toyota Coaster','Yutong Bus','Other'] },
   { key:'own',          label:'Own / Rental',      defaultType:'select', defaultOpts:['Own','Rental','Leased'] },
   { key:'category',     label:'Category',           defaultType:'select', defaultOpts:['Double Cabin Pickup','16 Seater','30 Seater','34 Seater','64 Seater','71 Seater','Panel Van','Saloon','SUV','Van','Motorcycle','Equipment'] },
   { key:'utilization',  label:'Utilization',        defaultType:'select', defaultOpts:['Passenger','Operations'] },
@@ -3973,8 +4014,10 @@ const REQUEST_FLEET_FIELDS = [
   { id:'rq-region',   label:'Region / Location',type:'text',   req:true,  placeholder:'Dubai, Abu Dhabi…' },
   { id:'rq-own',      label:'Own / Rental',     type:'text',   req:false, placeholder:'Own or Rental' },
   { id:'rq-owner',    label:'Owner / Lessor',   type:'text',   req:false, placeholder:'Company name' },
-  { id:'rq-end_user', label:'End User',         type:'text',   req:false, placeholder:'Driver name' },
-  { id:'rq-phone',    label:'Phone',            type:'text',   req:false, placeholder:'+971 50…' },
+  { id:'rq-end_user',    label:'End User',         type:'text',   req:false, placeholder:'Driver name' },
+  { id:'rq-phone',       label:'Phone',            type:'text',   req:false, placeholder:'+971 50…' },
+  { id:'rq-utilization', label:'Utilization',      type:'text',   req:false, placeholder:'Passenger or Operations' },
+  { id:'rq-job_code',    label:'Job Code',          type:'text',   req:false, placeholder:'Job Code' },
 ];
 
 const REQUEST_DRIVER_FIELDS = [
@@ -4182,13 +4225,88 @@ function rejectRequest(rqId) {
 }
 
 // ═══════════════════════════════════════════
+// PERMIT BULK IMPORT
+// ═══════════════════════════════════════════
+let _permitImportType = '';
+let _permitImportParsed = [];
+
+function openPermitImportModal(type) {
+  _permitImportType = type;
+  _permitImportParsed = [];
+  document.getElementById('permitImportTitle').textContent = 'Import ' + (type==='fleet'?'Fleet':'Driver') + ' Permits CSV';
+  document.getElementById('permitImportFile').value = '';
+  document.getElementById('permitImportFileName').textContent = 'No file chosen';
+  document.getElementById('permitImportPreview').style.display = 'none';
+  document.getElementById('permitImportZone').style.borderColor = '#cbd5e1';
+  const btn = document.getElementById('permitImportBtn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; }
+  document.getElementById('permitImportModal').classList.add('open');
+}
+
+function previewPermitImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('permitImportFileName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).filter(Boolean);
+    if (lines.length < 2) return;
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
+    const required = ['ref','permitno','startdate','enddate'];
+    const missing = required.filter(r => !headers.some(h => h.replace(/[_ ]/g,'') === r.replace(/[_ ]/g,'')));
+    if (missing.length) {
+      document.getElementById('permitImportErrors').textContent = '⚠ Missing required columns: ' + missing.join(', ');
+      document.getElementById('permitImportPreview').style.display = 'block';
+      return;
+    }
+    _permitImportParsed = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+      const rec = {};
+      headers.forEach((h, i) => rec[h] = vals[i] || '');
+      return {
+        ref: rec.ref || '',
+        permitNo: rec.permitno || rec['permit no'] || rec['permit_no'] || '',
+        permitName: rec.permitname || rec['permit name'] || rec['permit_name'] || '',
+        region: rec.region || rec['permitted region'] || '',
+        startDate: rec.startdate || rec['start date'] || rec['start_date'] || '',
+        endDate: rec.enddate || rec['end date'] || rec['end_date'] || '',
+        notes: rec.notes || '',
+      };
+    }).filter(r => r.ref && r.permitNo && r.endDate);
+    document.getElementById('permitImportCount').textContent = `✅ ${_permitImportParsed.length} permit(s) ready to import`;
+    document.getElementById('permitImportErrors').textContent = '';
+    document.getElementById('permitImportPreview').style.display = 'block';
+    document.getElementById('permitImportZone').style.borderColor = _permitImportParsed.length ? '#22c55e' : '#f87171';
+    const btn = document.getElementById('permitImportBtn');
+    if (btn && _permitImportParsed.length) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
+  };
+  reader.readAsText(file);
+}
+
+function confirmPermitImport() {
+  if (!_permitImportParsed.length) return;
+  const existing = getPermits(_permitImportType);
+  let added = 0, updated = 0;
+  _permitImportParsed.forEach(rec => {
+    const idx = existing.findIndex(p => p.ref === rec.ref && p.permitNo === rec.permitNo);
+    const entry = { ...rec, id: idx >= 0 ? existing[idx].id : 'p_' + Date.now() + Math.random(), createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) };
+    if (idx >= 0) { existing[idx] = { ...existing[idx], ...entry }; updated++; }
+    else { existing.push(entry); added++; }
+  });
+  savePermits(_permitImportType, existing);
+  closeModal('permitImportModal');
+  renderPermits();
+  showSuccessToast(`✅ Permits imported — ${added} added · ${updated} updated`, 3500);
+}
+
+// ═══════════════════════════════════════════
 // IMPORT CSV
 // IMPORT CSV
 // ═══════════════════════════════════════════
 let _importType = '';
 let _importParsed = [];
 
-const FLEET_IMPORT_COLS   = ['plate','reg','make','category','own','owner','portal','monthly_cost','end_user','end_user_id','designation','contract','phone','region','job_code','gps_rfid','utilization','status','remarks']; // All cols available, only plate required
+const FLEET_IMPORT_COLS   = ['plate','reg','make','category','own','owner','end_user','end_user_id','designation','phone','region','status','utilization','job_code','gps_rfid','monthly_cost','contract','remarks']; // All cols available, only plate required
 const DRIVER_IMPORT_COLS  = ['driver_id','name','contact','driver_type','vehicle_plate','assign_date','status','location','lic_no','driver_class','lic_expiry','notes']; // All cols available, only driver_id required
 
 const FLEET_REQUIRED_IMPORT  = ['plate'];
@@ -4479,6 +4597,12 @@ function generateReport(type) {
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','daysLeft','notes','createdBy'];
     title = 'Fleet Permit Alert (Expired + within 30 days)';
   }
+  if (type==='job-code') {
+    data = vehicles.filter(v => v.job_code).sort((a,b)=>(a.job_code||'').localeCompare(b.job_code||''));
+    cols = ['job_code','plate','make','category','status','utilization','region','end_user','own'];
+    title = 'Fleet by Job Code';
+    colMap = { job_code:'Job Code', plate:'Plate', make:'Make/Model', category:'Category', status:'Status', utilization:'Utilization', region:'Region', end_user:'End User', own:'Own/Rental' };
+  }
   currentReport = data; currentReportCols = cols; currentReportName = type;
   document.getElementById('reportTitle').textContent = `${title} (${data.length} records)`;
   document.getElementById('reportExportBtn').style.display = 'inline-flex';
@@ -4524,7 +4648,7 @@ function exportCurrentReport() {
 
 function exportFleetCSV() {
   const data = getFilteredFleet();
-  const keys = ['plate','reg','make','category','own','owner','end_user','end_user_id','designation','phone','region','status','utilization','remarks'];
+  const keys = ['plate','reg','make','category','own','owner','end_user','end_user_id','designation','phone','region','status','utilization','job_code','gps_rfid','monthly_cost','contract','remarks'];
   const csv = [keys.join(','), ...data.map(r=>keys.map(k=>`"${(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   dl('AGFS_Fleet_'+fmtDate()+'.csv', csv, 'text/csv');
 }
