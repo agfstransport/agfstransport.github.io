@@ -1158,12 +1158,12 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       </div>
       <div class="fg">
         <label>Upload CSV File</label>
-        <div style="border:2px dashed #cbd5e1;border-radius:8px;padding:20px;text-align:center;background:#f8fafc;cursor:pointer;" onclick="document.getElementById('permitImportFile').click()" id="permitImportZone">
+        <div style="border:2px dashed #cbd5e1;border-radius:8px;padding:20px;text-align:center;background:#f8fafc;position:relative;" id="permitImportZone">
           <div style="font-size:28px;margin-bottom:6px;">📂</div>
           <div style="font-size:13px;font-weight:600;color:#374151;">Click to choose a CSV file</div>
           <div style="font-size:11px;color:#94a3b8;margin-top:4px;" id="permitImportFileName">No file chosen</div>
+          <input type="file" id="permitImportFile" accept=".csv" onchange="previewPermitImport(this)" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;">
         </div>
-        <input type="file" id="permitImportFile" accept=".csv" onchange="previewPermitImport(this)" style="display:none;">
       </div>
       <div id="permitImportPreview" style="display:none;margin-top:10px;">
         <div style="font-size:12px;color:#15803d;font-weight:600;" id="permitImportCount"></div>
