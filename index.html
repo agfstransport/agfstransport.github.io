@@ -493,6 +493,25 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       </div>
     </div>
 
+    <!-- ROW 2b: GPS RFID summary -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="dash-glass-card" id="dashGpsCard">
+        <div class="dgc-title">GPS / RFID Status</div>
+        <div id="dashGpsBars"></div>
+      </div>
+      <div class="dash-glass-card">
+        <div class="dgc-title">GPS Coverage</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <svg width="90" height="90" viewBox="0 0 100 100" id="dashGpsDonut"></svg>
+          <div id="dashGpsDonutLegend" style="display:flex;flex-direction:column;gap:6px;flex:1;"></div>
+        </div>
+      </div>
+      <div class="dash-glass-card">
+        <div class="dgc-title">Vehicles Without GPS</div>
+        <div id="dashNoGpsList" style="max-height:120px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
     <!-- ══════════ DRIVER SECTION ══════════ -->
 
     <!-- ROW 3: Drivers by Location + Drivers by Class + Driver Status -->
@@ -654,7 +673,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="stat-card" onclick="generateReport('deployed')"><div class="sc-label">Deployed Vehicles</div><div class="sc-val" style="font-size:18px;">📍</div><div class="sc-sub">Currently deployed</div></div>
       <div class="stat-card" onclick="generateReport('maintenance')"><div class="sc-label">Under Maintenance</div><div class="sc-val" style="font-size:18px;">🔧</div><div class="sc-sub">Vehicles in garage</div></div>
       <div class="stat-card" onclick="generateReport('unassigned')"><div class="sc-label">Unassigned Drivers</div><div class="sc-val" style="font-size:18px;">⚠️</div><div class="sc-sub">No vehicle assigned</div></div>
-      <div class="stat-card" onclick="generateReport('lic-expiry')"><div class="sc-label">License Expiry Alert</div><div class="sc-val" style="font-size:18px;">🪪</div><div class="sc-sub">Expiring within 60 days</div></div>
+      <div class="stat-card" onclick="generateReport('lic-expiry')"><div class="sc-label">License Expiry Alert</div><div class="sc-val" style="font-size:18px;">🪪</div><div class="sc-sub">Expired + expiring within 30 days</div></div>
       <div class="stat-card" onclick="generateReport('fleet-permits')"><div class="sc-label">Fleet Permits</div><div class="sc-val" style="font-size:18px;">📜</div><div class="sc-sub">All fleet permit records</div></div>
       <div class="stat-card" onclick="generateReport('driver-permits')"><div class="sc-label">Driver Permits</div><div class="sc-val" style="font-size:18px;">🪪</div><div class="sc-sub">All driver permit records</div></div>
       <div class="stat-card" onclick="generateReport('permit-expiry')"><div class="sc-label">Permit Expiry Alert</div><div class="sc-val" style="font-size:18px;">⚠️</div><div class="sc-sub">Expiring or expired permits</div></div>
@@ -1136,7 +1155,8 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#0369a1;">
         <strong>Required columns:</strong> <code>ref</code> (Plate/Driver) · <code>permitNo</code> · <code>startDate</code> · <code>endDate</code><br>
         <strong>Optional:</strong> <code>permitName</code> (Asateel/RTA) · <code>region</code> · <code>notes</code><br>
-        Dates format: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code>
+        Dates format: <code>DD/MM/YYYY</code> or <code>YYYY-MM-DD</code><br>
+        <a href="#" onclick="downloadPermitTemplate(event)" style="color:#0369a1;font-weight:700;">⬇ Download Template CSV</a>
       </div>
       <div class="fg">
         <label>Upload CSV File</label>
@@ -1738,7 +1758,7 @@ function renderDashboard() {
     statusBarsEl.innerHTML = statEntries.map(([s,c]) => `
       <div class="dash-status-bar-item" onclick="dashFleetStatus('${s}')" style="cursor:pointer;" title="Click to filter Fleet Master by ${s}">
         <div class="dash-status-bar-lbl">${s}</div>
-        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.round(c/statMax*100)}%;background:${statusColors[s]||'#a855f7'};"></div></div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(c/statMax*100))}%;background:${statusColors[s]||'#a855f7'};"></div></div>
         <div class="dash-status-bar-val">${c}</div>
       </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No fleet data yet.</div>';
   }
@@ -1779,7 +1799,7 @@ function renderDashboard() {
     catBarsEl.innerHTML = catEntries.map(([c,v],i) => `
       <div class="dash-status-bar-item" onclick="dashFleetCategory('${c}')" style="cursor:pointer;" title="Click to filter Fleet Master by ${c}">
         <div class="dash-status-bar-lbl">${c}</div>
-        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.round(v/catMax*100)}%;background:${catColors[i%catColors.length]};"></div></div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(v/catMax*100))}%;background:${catColors[i%catColors.length]};"></div></div>
         <div class="dash-status-bar-val">${v}</div>
       </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No fleet data yet.</div>';
   }
@@ -1824,7 +1844,7 @@ function renderDashboard() {
     dLocBarsEl.innerHTML = dLocEntries.map(([l,v],i) => `
       <div class="dash-status-bar-item" onclick="dashDriverLocation('${l}')" style="cursor:pointer;" title="Click to filter Driver Master by ${l}">
         <div class="dash-status-bar-lbl">${l}</div>
-        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.round(v/dLocMax*100)}%;background:${regColors[i%regColors.length]};"></div></div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(v/dLocMax*100))}%;background:${regColors[i%regColors.length]};"></div></div>
         <div class="dash-status-bar-val">${v}</div>
       </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No driver data yet.</div>';
   }
@@ -1840,7 +1860,7 @@ function renderDashboard() {
     euBarsEl.innerHTML = utilEntries.map(([u,v]) => `
       <div class="dash-status-bar-item" onclick="dashFleetUtil('${u}')" style="cursor:pointer;" title="Click to filter Fleet Master by ${u} utilization">
         <div class="dash-status-bar-lbl" style="width:100px;">${u}</div>
-        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.round(v/utilMax*100)}%;background:${utilColors[u]||'#7c3aed'};"></div></div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(v/utilMax*100))}%;background:${utilColors[u]||'#7c3aed'};"></div></div>
         <div class="dash-status-bar-val">${v}</div>
       </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No utilization data yet.</div>';
   }
@@ -1855,7 +1875,7 @@ function renderDashboard() {
     clsBarsEl.innerHTML = clsEntries.map(([c,v]) => `
       <div class="dash-status-bar-item">
         <div class="dash-status-bar-lbl">${c}</div>
-        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.round(v/clsMax*100)}%;background:${clsColors[c]};"></div></div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(v/clsMax*100))}%;background:${clsColors[c]};"></div></div>
         <div class="dash-status-bar-val">${v}</div>
       </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No driver class data yet.</div>';
   }
@@ -1921,6 +1941,64 @@ function renderDashboard() {
         </div>
       </div>`;
     }).join('') || '<div style="font-size:11px;color:#9b8bb8;">No driver type data yet.</div>';
+  }
+
+  // ── GPS / RFID dashboard card ──────────────────────────────────
+  const gpsTypes = {};
+  filtV.forEach(v => {
+    const k = (v.gps_rfid||'').trim() ? (v.gps_rfid.trim()) : 'No GPS/RFID';
+    // Group by type (GPS Only, RFID Only, GPS+RFID, None)
+    let grpKey = 'No GPS/RFID';
+    if (v.gps_rfid) {
+      const g = v.gps_rfid.toLowerCase();
+      if (g.includes('gps') && g.includes('rfid')) grpKey = 'GPS + RFID';
+      else if (g.includes('rfid')) grpKey = 'RFID Only';
+      else if (g.includes('gps')) grpKey = 'GPS Only';
+      else grpKey = 'Fitted';
+    }
+    gpsTypes[grpKey] = (gpsTypes[grpKey]||0)+1;
+  });
+
+  const gpsColors = { 'GPS + RFID':'#22c55e', 'GPS Only':'#3b82f6', 'RFID Only':'#8b5cf6', 'Fitted':'#f59e0b', 'No GPS/RFID':'#ef4444' };
+  const gpsEntries = Object.entries(gpsTypes).sort((a,b)=>b[1]-a[1]);
+  const gpsMax = Math.max(...gpsEntries.map(([,v])=>v),1);
+
+  const gpsBarsEl = document.getElementById('dashGpsBars');
+  if (gpsBarsEl) {
+    gpsBarsEl.innerHTML = gpsEntries.map(([k,v]) => `
+      <div class="dash-status-bar-item" style="cursor:pointer;" onclick="dashFleetGps('${k}')" title="Filter by ${k}">
+        <div class="dash-status-bar-lbl">${k}</div>
+        <div class="dash-status-bar-track"><div class="dash-status-bar-fill" style="width:${Math.max(4,Math.round(v/gpsMax*100))}%;background:${gpsColors[k]||'#94a3b8'};"></div></div>
+        <div class="dash-status-bar-val">${v}</div>
+      </div>`).join('') || '<div style="font-size:11px;color:#9b8bb8;padding:8px 0;">No GPS data yet.</div>';
+  }
+
+  // GPS donut
+  const noGps = gpsTypes['No GPS/RFID']||0;
+  const withGps = filtV.length - noGps;
+  const gpsCovPct = filtV.length ? Math.round(withGps/filtV.length*100) : 0;
+  const gpsDonut = document.getElementById('dashGpsDonut');
+  if (gpsDonut) {
+    const r=38,cx=50,cy=50,circ=2*Math.PI*r;
+    const dash1=gpsCovPct/100*circ, dash2=circ-dash1;
+    gpsDonut.innerHTML = `
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1edf9" stroke-width="14"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#22c55e" stroke-width="14" stroke-dasharray="${dash1} ${dash2}" transform="rotate(-90 ${cx} ${cy})"/>
+      <text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#3d2563" font-size="14" font-weight="800">${gpsCovPct}%</text>`;
+  }
+  const gpsLegEl = document.getElementById('dashGpsDonutLegend');
+  if (gpsLegEl) {
+    gpsLegEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:9px;height:9px;border-radius:50%;background:#22c55e;display:inline-block;"></span><span style="color:#6b5b8a;flex:1;">With GPS/RFID</span><span style="color:#3d2563;font-weight:800;">${withGps}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;"><span style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block;"></span><span style="color:#6b5b8a;flex:1;">No GPS/RFID</span><span style="color:#3d2563;font-weight:800;">${noGps}</span></div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1edf9;font-size:11px;color:#6b5b8a;">Coverage: <strong style="color:#3d2563;">${gpsCovPct}%</strong></div>`;
+  }
+  const noGpsEl = document.getElementById('dashNoGpsList');
+  if (noGpsEl) {
+    const noGpsVehicles = filtV.filter(v=>!v.gps_rfid||!v.gps_rfid.trim());
+    noGpsEl.innerHTML = noGpsVehicles.length
+      ? noGpsVehicles.slice(0,10).map(v=>`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid #f1edf9;display:flex;justify-content:space-between;"><span style="font-weight:600;color:#3d2563;">${v.plate}</span><span style="color:#6b5b8a;">${v.region||'—'}</span></div>`).join('') + (noGpsVehicles.length>10?`<div style="font-size:10px;color:#9b8bb8;padding:4px 0;">+${noGpsVehicles.length-10} more</div>`:'')
+      : '<div style="font-size:11px;color:#22c55e;padding:8px 0;">✅ All vehicles have GPS/RFID!</div>';
   }
 
   // ── Recent activity ──────────────────────────────────────────
@@ -2560,6 +2638,22 @@ function dashDriverClass(cls) {
   if (el) el.value = cls;
   driverPage = 1; renderDrivers();
 }
+function dashFleetGps(gpsType) {
+  switchTab('fleet');
+  clearFleetFilters();
+  if (gpsType === 'No GPS/RFID') {
+    // Filter vehicles with empty gps_rfid
+    document.getElementById('fleetSearch').value = '';
+    fleetPage = 1;
+    // Temporarily filter — use search won't work cleanly, so filter by tag
+    window._dashGpsFilter = gpsType;
+  } else {
+    document.getElementById('fleetSearch').value = gpsType.split(' ')[0]; // 'GPS' or 'RFID'
+    window._dashGpsFilter = null;
+  }
+  renderFleet();
+}
+
 function dashDriverType(type) {
   switchTab('drivers');
   document.getElementById('driverSearch').value = '';
@@ -4258,6 +4352,17 @@ function rejectRequest(rqId) {
 let _permitImportType = '';
 let _permitImportParsed = [];
 
+function downloadPermitTemplate(e) {
+  e.preventDefault();
+  const type = _permitImportType || 'fleet';
+  const headers = ['ref','permitNo','permitName','region','startDate','endDate','notes'];
+  const example = type === 'fleet'
+    ? [['DXB-11234','PMT-2026-001','Asateel','Dubai','01/01/2026','31/12/2026','Annual permit']]
+    : [['EMP-001','PMT-DRV-001','RTA','Dubai','01/01/2026','31/12/2026','Driver permit']];
+  const csv = [headers.join(','), ...example.map(r=>r.map(v=>`"${v}"`).join(','))].join('\n');
+  dl(`AGFS_${type}_permit_template.csv`, csv, 'text/csv');
+}
+
 function openPermitImportModal(type) {
   _permitImportType = type;
   _permitImportParsed = [];
@@ -4582,9 +4687,18 @@ function generateReport(type) {
   if (type==='deployed')     { data=vehicles.filter(v=>v.status==='Deployed');           cols=['plate','make','end_user','end_user_id','phone','region','job_code']; title='Deployed Vehicles'; }
   if (type==='maintenance')  { data=vehicles.filter(v=>v.status==='Under Maintenance');  cols=['plate','make','end_user','region','remarks']; title='Under Maintenance'; }
   if (type==='unassigned')   { data=drivers.filter(d=>!d.vehicle_plate);                 cols=['name','driver_id','contact','location','status']; title='Unassigned Drivers'; }
-  if (type==='lic-expiry')   {
-    data=drivers.filter(d=>d.lic_expiry && (new Date(d.lic_expiry)-today)<60*24*3600000);
-    cols=['name','driver_id','contact','vehicle_plate','lic_no','driver_class','lic_expiry','status']; title='License Expiry Alert (60 days)';
+  if (type==='lic-expiry') {
+    const nowMs = new Date().getTime();
+    data = drivers.filter(d => {
+      if (!d.lic_expiry) return false;
+      const days = Math.ceil((new Date(d.lic_expiry).getTime() - nowMs) / (1000*60*60*24));
+      return days <= 30;
+    }).map(d => {
+      const days = Math.ceil((new Date(d.lic_expiry).getTime() - nowMs) / (1000*60*60*24));
+      return { ...d, days_left: days, expiry_status: days < 0 ? 'Expired' : days <= 7 ? 'Critical' : 'Warning' };
+    }).sort((a, b) => a.days_left - b.days_left);
+    cols = ['name','driver_id','contact','vehicle_plate','lic_no','driver_class','lic_expiry','days_left','expiry_status','status'];
+    title = 'License Expiry Alert (Expired + within 30 days)';
   }
   if (type==='driver-class') {
     const heavy = drivers.filter(d=>d.driver_class==='Heavy');
