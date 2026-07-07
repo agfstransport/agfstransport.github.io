@@ -901,7 +901,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>GPS + RFID</option>
           <option>GPS + Portable RFID Device</option>
         </select></div>
-        <div class="fg"><label>Utilization</label><select id="v-utilization"><option value="">— Select —</option><option>Passenger</option><option>Operations</option></select></div>
+        <div class="fg"><label>Utilization <span style="color:var(--pink)">*</span></label><select id="v-utilization"><option value="">— Select Utilization —</option><option>Passenger</option><option>Operations</option></select></div>
         <div class="fg full"><label>Remarks</label><textarea id="v-remarks" rows="2" placeholder="Any notes…"></textarea></div>
         <div id="vCustomFieldsSection" class="full" style="grid-column:1/-1;display:none;"></div>
       </div>
@@ -1467,6 +1467,9 @@ function startApp() {
   checkConnection(false);
   if (window._connInterval) clearInterval(window._connInterval);
   window._connInterval = setInterval(() => checkConnection(false), 30000); // re-check every 30s
+  // Sync notifications every 2 minutes so submitters see approval/rejection promptly
+  if (window._notifInterval) clearInterval(window._notifInterval);
+  window._notifInterval = setInterval(() => syncNotificationsFromSheet(), 2 * 60 * 1000);
   // Auto-refresh data from Sheet every 5 minutes
   if (window._dataRefreshInterval) clearInterval(window._dataRefreshInterval);
   window._dataRefreshInterval = setInterval(() => { if (GAS_URL) loadData().then(renderAll); }, 5 * 60 * 1000);
@@ -2994,6 +2997,7 @@ async function saveVehicle() {
   if (!g('own'))        vErrors.push('Own / Rental');
   if (!g('region'))     vErrors.push('Region / Location');
   if (!g('job_code'))   vErrors.push('Job Code');
+  if (!g('utilization')) vErrors.push('Utilization (Passenger / Operations)');
   if (vErrors.length) { alert('Please fill in required fields:\n• ' + vErrors.join('\n• ')); return; }
 
   // Duplicate check — plate number only (plate code like "20 AA" can be shared across vehicles)
@@ -4018,7 +4022,7 @@ async function syncNotificationsFromSheet() {
       if (newOnes.length) {
         const merged = [...newOnes, ...existing].slice(0, 50);
         saveNotifications(currentUser.id, merged);
-        updateNotifBell();
+        updateNotifBadge();
         // Clear them from the Sheet now that we've received them
         apiPost({ action:'clear_notifications', userId: currentUser.id });
       }
