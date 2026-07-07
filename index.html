@@ -1717,6 +1717,9 @@ function renderDashboard() {
   const filtV = _dashRegionFilter ? vehicles.filter(v => v.region === _dashRegionFilter) : vehicles;
   const filtD = _dashRegionFilter ? drivers.filter(d => d.location === _dashRegionFilter) : drivers;
 
+  // ── Pre-compute grouped data for all charts ────────────────────
+  const regionGrp = grp(filtV, 'region');
+
   // ── Top pills ────────────────────────────────────────────
   document.getElementById('d-total').textContent   = filtV.length;
   document.getElementById('d-drivers').textContent = filtD.length;
