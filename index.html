@@ -1575,6 +1575,7 @@ async function loadData() {
   loadPersistedData(); // always load local first
   if (!GAS_URL) { renderAll(); return; }
   syncRequestsFromSheet(); // pull pending approvals from Sheet so admin sees all team submissions
+  syncFieldConfigFromSheet(); // pull field configurations so all users get same dropdowns
   syncNotificationsFromSheet(); // pull cross-device notifications (e.g. approval results)
   try {
     const [vRes, dRes, hRes] = await Promise.all([
@@ -3647,11 +3648,43 @@ function saveFieldConfig_store(tracker, key, cfg) {
   const all = JSON.parse(localStorage.getItem('agfsFC_' + tracker) || '{}');
   all[key] = cfg;
   localStorage.setItem('agfsFC_' + tracker, JSON.stringify(all));
+  syncFieldConfigToSheet(); // push to Sheet so all users get the updated dropdowns
 }
 function resetFieldConfig_store(tracker, key) {
   const all = JSON.parse(localStorage.getItem('agfsFC_' + tracker) || '{}');
   delete all[key];
   localStorage.setItem('agfsFC_' + tracker, JSON.stringify(all));
+  syncFieldConfigToSheet();
+}
+
+// Collect all field configs across all trackers into one object
+function getAllFieldConfigs() {
+  return {
+    fleet:  JSON.parse(localStorage.getItem('agfsFC_fleet')  || '{}'),
+    driver: JSON.parse(localStorage.getItem('agfsFC_driver') || '{}'),
+    permit: JSON.parse(localStorage.getItem('agfsFC_permit') || '{}'),
+  };
+}
+
+// Push field configs to Sheet so all users/devices get the same dropdowns
+function syncFieldConfigToSheet() {
+  if (!GAS_URL) return;
+  apiPost({ action: 'save_field_configs', configs: getAllFieldConfigs() });
+}
+
+// Pull field configs from Sheet on login/sync
+async function syncFieldConfigFromSheet() {
+  if (!GAS_URL) return;
+  try {
+    const r = await fetch(GAS_URL + '?action=field_configs');
+    const j = await r.json();
+    if (j.ok && j.data) {
+      ['fleet','driver','permit'].forEach(t => {
+        if (j.data[t]) localStorage.setItem('agfsFC_' + t, JSON.stringify(j.data[t]));
+      });
+      applyFieldConfigs();
+    }
+  } catch(e) { console.warn('Field config sync failed:', e); }
 }
 
 // Render the field config list in Access Control
