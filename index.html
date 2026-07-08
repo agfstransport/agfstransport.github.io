@@ -3921,21 +3921,38 @@ function savePermit() {
   const ref    = document.getElementById('permit-ref').value.trim();
   const pno    = document.getElementById('permit-no').value.trim();
   const pname  = document.getElementById('permit-name')?.value || '';
-  const region = document.getElementById('permit-region').value;
-  const start  = document.getElementById('permit-start').value;
-  const end    = document.getElementById('permit-end').value;
   const notes  = document.getElementById('permit-notes').value.trim();
+
+  // Build per-region dates from the checked regions + their date rows
+  const checkedRegions = [...document.querySelectorAll('#permit-region-checkboxes input:checked')].map(c => c.value);
+  const regions = {};
+  let missingDates = false;
+  document.querySelectorAll('.prdate-row').forEach(row => {
+    const r = row.dataset.region;
+    const s = row.querySelector('.prdate-start')?.value || '';
+    const e = row.querySelector('.prdate-end')?.value || '';
+    if (!s || !e) missingDates = true;
+    regions[r] = { startDate: s, endDate: e };
+  });
+
   const errs = [];
   if (!ref)    errs.push(_permitType==='fleet'?'Vehicle Plate':'Driver Name');
   if (!pno)    errs.push('Permit No');
-  if (!region) errs.push('Permitted Region');
-  if (!start)  errs.push('Start Date');
-  if (!end)    errs.push('End Date');
+  if (!checkedRegions.length) errs.push('Permitted Region');
+  if (checkedRegions.length && missingDates) errs.push('Start/End Date for each selected region');
   if (errs.length) { alert('Required:\n• ' + errs.join('\n• ')); return; }
-  if (start > end) { alert('End Date must be after Start Date.'); return; }
+
+  for (const r of checkedRegions) {
+    if (regions[r].startDate > regions[r].endDate) { alert(`End Date must be after Start Date for ${r}.`); return; }
+  }
+
+  const region = checkedRegions.join(', ');
+  // Use the soonest start / soonest end across regions so list view + expiry alerts reflect the nearest-expiring region
+  const start = checkedRegions.map(r => regions[r].startDate).sort()[0];
+  const end   = checkedRegions.map(r => regions[r].endDate).sort()[0];
 
   const permits = getPermits(_permitType);
-  const entry = { id: _editPermitId || 'p_' + Date.now(), ref, permitNo: pno, permitName: pname, region, startDate: start, endDate: end, notes, createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) };
+  const entry = { id: _editPermitId || 'p_' + Date.now(), ref, permitNo: pno, permitName: pname, region, regions, startDate: start, endDate: end, notes, createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) };
   if (_editPermitId) {
     const idx = permits.findIndex(p => p.id === _editPermitId);
     if (idx >= 0) permits[idx] = entry;
