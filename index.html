@@ -4092,10 +4092,10 @@ function updatePermitCount() {
 function exportPermitsCSV(type) {
   const data = getPermits(type);
   if (!data.length) { alert('No permits to export.'); return; }
-  const headers = ['Ref','Permit No','Permitted Region','Start Date','End Date','Status','Notes','Created By','Created At'];
+  const headers = ['Ref','Permit No','Permit Name','Permitted Region','Start Date','End Date','Status','Notes','Created By','Created At'];
   const rows = data.flatMap(p => expandPermitRegions(p).map(r => {
     const st = permitStatus(r.endDate);
-    return [p.ref, p.permitNo, r.region, fmtDisplayDate(r.startDate), fmtDisplayDate(r.endDate), st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
+    return [p.ref, p.permitNo, p.permitName||'', r.region, fmtDisplayDate(r.startDate), fmtDisplayDate(r.endDate), st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
   }));
   const csv = [headers, ...rows].map(r => r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl('AGFS_' + (type==='fleet'?'Fleet':'Driver') + '_Permits_' + fmtDate() + '.csv', csv, 'text/csv');
@@ -4824,7 +4824,7 @@ function generateReport(type) {
   const fleetColMap = { plate:'Plate No', reg:'Plate Code', make:'Make/Model', category:'Category', own:'Own/Rental', end_user:'End User', end_user_id:'End User ID', phone:'Phone', region:'Region', job_code:'Job Code', status:'Status', utilization:'Utilization', remarks:'Remarks', portal:'Fuel Company' };
   const drvColMap  = { name:'Driver Name', driver_id:'Employee ID', contact:'Contact', vehicle_plate:'Vehicle Plate', assign_date:'Assign Date', driver_type:'Type', status:'Status', location:'Location', lic_no:'Lic No', driver_class:'Class', lic_expiry:'Lic Expiry', notes:'Notes' };
   const driverGrpMap = { _group:'Group' };
-  const permitColMap = { ref:'Plate / Driver', permitNo:'Permit No', region:'Permitted Region', startDate:'Start Date', endDate:'End Date', permit_status:'Status', notes:'Notes', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left' };
+  const permitColMap = { ref:'Plate / Driver', permitNo:'Permit No', permitName:'Permit Name', region:'Permitted Region', startDate:'Start Date', endDate:'End Date', permit_status:'Status', notes:'Notes', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left' };
   const colLabel = k => driverGrpMap[k] || fleetColMap[k] || drvColMap[k] || permitColMap[k] || k.replace(/_/g,' ').toUpperCase();
 
   if (type==='fleet-full')   { data=vehicles; cols=['plate','reg','make','category','own','portal','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','status','utilization','remarks']; title='Full Fleet Export'; }
@@ -4861,19 +4861,19 @@ function generateReport(type) {
   }
   if (type==='fleet-permits') {
     data = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
-    cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
+    cols = ['ref','permitNo','permitName','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Fleet Permits';
   }
   if (type==='driver-permits') {
     data = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
-    cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
+    cols = ['ref','permitNo','permitName','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Driver Permits';
   }
   if (type==='permit-expiry') {
     const fp = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Fleet', region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
     const dp = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Driver', region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
     data = [...fp, ...dp].filter(p => p.daysLeft <= 30).sort((a,b) => a.daysLeft - b.daysLeft);
-    cols = ['tracker','ref','permitNo','region','startDate','endDate','permit_status','notes'];
+    cols = ['tracker','ref','permitNo','permitName','region','startDate','endDate','permit_status','notes'];
     title = 'Permit Expiry Alert (Expired + within 30 days)';
   }
   if (type==='fleet-permit-alert') {
@@ -4881,7 +4881,7 @@ function generateReport(type) {
       .flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })))
       .filter(p => p.daysLeft <= 30)
       .sort((a,b) => a.daysLeft - b.daysLeft);
-    cols = ['ref','permitNo','region','startDate','endDate','permit_status','daysLeft','notes','createdBy'];
+    cols = ['ref','permitNo','permitName','region','startDate','endDate','permit_status','daysLeft','notes','createdBy'];
     title = 'Fleet Permit Alert (Expired + within 30 days)';
   }
   if (type==='job-code') {
@@ -4923,7 +4923,9 @@ function exportCurrentReport() {
     portal:'Fuel Company', monthly_cost:'Monthly Cost', contract:'Contract',
     name:'Driver Name', driver_id:'Employee ID', contact:'Contact',
     vehicle_plate:'Vehicle Plate', assign_date:'Assign Date', driver_type:'Inhouse/Outsource',
-    location:'Location', lic_no:'License No', driver_class:'Driver Class', lic_expiry:'Lic Expiry', notes:'Notes'
+    location:'Location', lic_no:'License No', driver_class:'Driver Class', lic_expiry:'Lic Expiry', notes:'Notes',
+    ref:'Plate / Driver', permitNo:'Permit No', permitName:'Permit Name', startDate:'Start Date', endDate:'End Date',
+    permit_status:'Status', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left'
   };
   const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
   const csv = [
