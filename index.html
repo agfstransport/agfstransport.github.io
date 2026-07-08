@@ -1119,6 +1119,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Al Ain" onchange="updatePermitRegionDates()"> Al Ain</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Sharjah" onchange="updatePermitRegionDates()"> Sharjah</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Ajman" onchange="updatePermitRegionDates()"> Ajman</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Fujairah" onchange="updatePermitRegionDates()"> Fujairah</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Northern Emirates" onchange="updatePermitRegionDates()"> Northern Emirates</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="Western Region" onchange="updatePermitRegionDates()"> Western Region</label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid var(--border);"><input type="checkbox" value="All UAE" onchange="updatePermitRegionDates()"> All UAE</label>
@@ -1724,9 +1725,9 @@ function renderDashboard() {
   document.getElementById('d-total').textContent   = filtV.length;
   document.getElementById('d-drivers').textContent = filtD.length;
 
-  const allPermits = [...getPermits('fleet'), ...getPermits('driver')];
-  const expiringPermits = allPermits.filter(p => { const d = permitStatus(p.endDate).days; return d >= 0 && d <= 30; }).length;
-  const expiredPermits  = allPermits.filter(p => permitStatus(p.endDate).days < 0).length;
+  const allPermits = [...getPermits('fleet'), ...getPermits('driver')].flatMap(p => expandPermitRegions(p));
+  const expiringPermits = allPermits.filter(r => { const d = permitStatus(r.endDate).days; return d >= 0 && d <= 30; }).length;
+  const expiredPermits  = allPermits.filter(r => permitStatus(r.endDate).days < 0).length;
   document.getElementById('d-permits-expiring').textContent = expiringPermits + expiredPermits;
 
   // ── Update active vehicle count KPI ─────────────────────────────
@@ -3892,8 +3893,8 @@ function openPermitModal(type, id) {
       document.querySelectorAll('.prdate-row').forEach(row => {
         const r = row.dataset.region;
         const rdates = p.regions && p.regions[r] ? p.regions[r] : { startDate: p.startDate||'', endDate: p.endDate||'' };
-        const s = row.querySelector('.prdate-start'); if(s) s.value = rdates.startDate;
-        const e = row.querySelector('.prdate-end');   if(e) e.value = rdates.endDate;
+        const s = row.querySelector('.prdate-start'); if(s) s.value = toISODate(rdates.startDate);
+        const e = row.querySelector('.prdate-end');   if(e) e.value = toISODate(rdates.endDate);
       });
     }
   }
@@ -3979,6 +3980,17 @@ function deletePermit(type, id) {
   } catch(e) { alert('Error deleting permit: ' + e.message); }
 }
 
+// Break a permit with multiple regions into one entry per region, each with its own start/end date.
+// Falls back to the permit's flat startDate/endDate when no per-region dates exist (legacy/CSV-imported records).
+function expandPermitRegions(p) {
+  const names = (p.region || '').split(',').map(r => r.trim()).filter(Boolean);
+  if (!names.length) return [{ region: p.region || '—', startDate: p.startDate, endDate: p.endDate }];
+  return names.map(r => {
+    const rd = (p.regions && p.regions[r]) ? p.regions[r] : { startDate: p.startDate, endDate: p.endDate };
+    return { region: r, startDate: rd.startDate, endDate: rd.endDate };
+  });
+}
+
 function permitStatus(endDate) {
   const today = new Date(); today.setHours(0,0,0,0);
   const end   = new Date(endDate);
@@ -3990,13 +4002,14 @@ function permitStatus(endDate) {
 
 function renderPermitPageAlerts() {
   const allPermits = [...getPermits('fleet'), ...getPermits('driver')];
-  const expiring = allPermits.filter(p => { const d=permitStatus(p.endDate).days; return d>=0 && d<=30; });
-  const expired  = allPermits.filter(p => permitStatus(p.endDate).days < 0);
+  const expanded = allPermits.flatMap(p => expandPermitRegions(p).map(r => ({ ref: p.ref, region: r.region, endDate: r.endDate })));
+  const expiring = expanded.filter(r => { const d=permitStatus(r.endDate).days; return d>=0 && d<=30; });
+  const expired  = expanded.filter(r => permitStatus(r.endDate).days < 0);
   const el = document.getElementById('permitPageAlert');
   if (!el) return;
   let html = '';
-  if (expired.length)  html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:12px;color:#dc2626;font-weight:600;display:flex;gap:8px;align-items:center;">⛔ <span><strong>${expired.length}</strong> permit${expired.length>1?'s':''} EXPIRED — ${expired.map(p=>p.ref).join(', ')}</span></div>`;
-  if (expiring.length) html += `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:12px;color:#b45309;font-weight:600;display:flex;gap:8px;align-items:center;">⚠️ <span><strong>${expiring.length}</strong> permit${expiring.length>1?'s':''} expiring within 30 days — ${expiring.map(p=>p.ref+' ('+permitStatus(p.endDate).days+'d)').join(', ')}</span></div>`;
+  if (expired.length)  html += `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:12px;color:#dc2626;font-weight:600;display:flex;gap:8px;align-items:center;">⛔ <span><strong>${expired.length}</strong> permit region${expired.length>1?'s':''} EXPIRED — ${expired.map(r=>r.ref+' ('+r.region+')').join(', ')}</span></div>`;
+  if (expiring.length) html += `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:12px;color:#b45309;font-weight:600;display:flex;gap:8px;align-items:center;">⚠️ <span><strong>${expiring.length}</strong> permit region${expiring.length>1?'s':''} expiring within 30 days — ${expiring.map(r=>r.ref+' ('+r.region+', '+permitStatus(r.endDate).days+'d)').join(', ')}</span></div>`;
   el.innerHTML = html;
 }
 
@@ -4015,12 +4028,13 @@ function renderPermits() {
     const alertEl = document.getElementById(type+'PermitAlerts');
     if (!tbody) continue;
 
-    // Expiry alerts
-    const expiring = getPermits(type).filter(p => { const s = permitStatus(p.endDate); return s.days >= 0 && s.days <= 30; });
-    const expired  = getPermits(type).filter(p => permitStatus(p.endDate).days < 0);
+    // Expiry alerts (per region, not just per permit)
+    const expandedForAlerts = getPermits(type).flatMap(p => expandPermitRegions(p));
+    const expiring = expandedForAlerts.filter(r => { const s = permitStatus(r.endDate); return s.days >= 0 && s.days <= 30; });
+    const expired  = expandedForAlerts.filter(r => permitStatus(r.endDate).days < 0);
     let alertHTML = '';
-    if (expired.length)  alertHTML += `<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#b91c1c;display:flex;align-items:center;gap:8px;">⛔ <strong>${expired.length}</strong> ${type} permit${expired.length>1?'s':''} expired — renew immediately</div>`;
-    if (expiring.length) alertHTML += `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#b45309;display:flex;align-items:center;gap:8px;">⚠️ <strong>${expiring.length}</strong> ${type} permit${expiring.length>1?'s':''} expiring within 30 days</div>`;
+    if (expired.length)  alertHTML += `<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#b91c1c;display:flex;align-items:center;gap:8px;">⛔ <strong>${expired.length}</strong> ${type} permit region${expired.length>1?'s':''} expired — renew immediately</div>`;
+    if (expiring.length) alertHTML += `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#b45309;display:flex;align-items:center;gap:8px;">⚠️ <strong>${expiring.length}</strong> ${type} permit region${expiring.length>1?'s':''} expiring within 30 days</div>`;
     if (alertEl) alertEl.innerHTML = alertHTML;
 
     const pTotalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
@@ -4032,16 +4046,28 @@ function renderPermits() {
 
     noData.style.display = data.length ? 'none' : 'block';
     tbody.innerHTML = pageData.map((p, i) => {
-      const st = permitStatus(p.endDate);
+      const rows = expandPermitRegions(p);
+      const lineStyle = rows.length > 1 ? 'style="padding:2px 0;border-bottom:1px dashed #e2e8f0;"' : '';
+      const lastLineStyle = 'style="padding:2px 0;"';
+      const regionLines = rows.map((r,idx) => `<div ${idx===rows.length-1?lastLineStyle:lineStyle}>${r.region}</div>`).join('');
+      const startLines  = rows.map((r,idx) => `<div ${idx===rows.length-1?lastLineStyle:lineStyle}>${fmtDisplayDate(r.startDate)}</div>`).join('');
+      const endLines    = rows.map((r,idx) => {
+        const st = permitStatus(r.endDate);
+        return `<div ${idx===rows.length-1?lastLineStyle:lineStyle} style="font-weight:${st.days<=30?700:400};color:${st.days<0?'#dc2626':st.days<=30?'#b45309':'inherit'}">${fmtDisplayDate(r.endDate)}</div>`;
+      }).join('');
+      const statusLines = rows.map((r,idx) => {
+        const st = permitStatus(r.endDate);
+        return `<div ${idx===rows.length-1?lastLineStyle:lineStyle}><span class="badge ${st.cls}">${st.label}</span></div>`;
+      }).join('');
       return `<tr>
         <td style="text-align:center;color:#94a3b8;font-size:11px;">${(pPage-1)*PAGE_SIZE+i+1}</td>
         <td><strong>${p.ref}</strong></td>
         <td>${p.permitNo}</td>
         <td>${p.permitName||'—'}</td>
-        <td>${p.region}</td>
-        <td>${fmtDisplayDate(p.startDate)}</td>
-        <td style="font-weight:${st.days<=30?700:400};color:${st.days<0?'#dc2626':st.days<=30?'#b45309':'inherit'}">${fmtDisplayDate(p.endDate)}</td>
-        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td>${regionLines}</td>
+        <td>${startLines}</td>
+        <td>${endLines}</td>
+        <td>${statusLines}</td>
         <td>
           <button class="btn btn-ghost btn-xs" data-ptype="${type}" data-pid="${p.id}" onclick="openPermitModal(this.dataset.ptype,this.dataset.pid)">✎</button>
           <button class="btn btn-danger btn-xs" data-ptype="${type}" data-pid="${p.id}" onclick="deletePermit(this.dataset.ptype,this.dataset.pid)">🗑</button>
@@ -4067,10 +4093,10 @@ function exportPermitsCSV(type) {
   const data = getPermits(type);
   if (!data.length) { alert('No permits to export.'); return; }
   const headers = ['Ref','Permit No','Permitted Region','Start Date','End Date','Status','Notes','Created By','Created At'];
-  const rows = data.map(p => {
-    const st = permitStatus(p.endDate);
-    return [p.ref, p.permitNo, p.region, p.startDate, p.endDate, st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
-  });
+  const rows = data.flatMap(p => expandPermitRegions(p).map(r => {
+    const st = permitStatus(r.endDate);
+    return [p.ref, p.permitNo, r.region, r.startDate, r.endDate, st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
+  }));
   const csv = [headers, ...rows].map(r => r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl('AGFS_' + (type==='fleet'?'Fleet':'Driver') + '_Permits_' + fmtDate() + '.csv', csv, 'text/csv');
 }
@@ -4445,11 +4471,30 @@ function updatePermitRegionDates() {
     existing[r] = { start: row.querySelector('.prdate-start')?.value||'', end: row.querySelector('.prdate-end')?.value||'' };
   });
   datesList.innerHTML = checked.map(r => `
-    <div class="prdate-row" data-region="${r}" style="display:grid;grid-template-columns:120px 1fr 1fr;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
+    <div class="prdate-row" data-region="${r}" style="display:grid;grid-template-columns:120px 1fr 1fr auto;align-items:end;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
       <span style="font-size:12px;font-weight:600;color:var(--text);">${r}</span>
       <div><label style="font-size:10px;color:var(--muted);">Start Date *</label><input type="date" class="prdate-start" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.start||''}"></div>
       <div><label style="font-size:10px;color:var(--muted);">End Date *</label><input type="date" class="prdate-end" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.end||''}"></div>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="clearPermitRegionDates('${r.replace(/'/g,"\\'")}')" style="height:28px;">Clear</button>
     </div>`).join('');
+}
+
+function clearPermitRegionDates(r) {
+  const row = document.querySelector('.prdate-row[data-region="' + r + '"]');
+  if (!row) return;
+  const s = row.querySelector('.prdate-start'); if (s) s.value = '';
+  const e = row.querySelector('.prdate-end');   if (e) e.value = '';
+}
+
+// Normalize any stored date (ISO yyyy-mm-dd, dd/mm/yyyy, or Date-parsable) to yyyy-mm-dd for <input type="date">
+function toISODate(val) {
+  if (!val) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  const m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+  return '';
 }
 
 function downloadPermitTemplate(e) {
@@ -4815,25 +4860,25 @@ function generateReport(type) {
     title = 'Drivers by Type (Inhouse / Outsource)';
   }
   if (type==='fleet-permits') {
-    data = getPermits('fleet').map(p => ({ ...p, permit_status: permitStatus(p.endDate).label }));
+    data = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label })));
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Fleet Permits';
   }
   if (type==='driver-permits') {
-    data = getPermits('driver').map(p => ({ ...p, permit_status: permitStatus(p.endDate).label }));
+    data = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label })));
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Driver Permits';
   }
   if (type==='permit-expiry') {
-    const fp = getPermits('fleet').map(p => ({ ...p, tracker:'Fleet', permit_status: permitStatus(p.endDate).label, daysLeft: permitStatus(p.endDate).days }));
-    const dp = getPermits('driver').map(p => ({ ...p, tracker:'Driver', permit_status: permitStatus(p.endDate).label, daysLeft: permitStatus(p.endDate).days }));
+    const fp = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Fleet', region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })));
+    const dp = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Driver', region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })));
     data = [...fp, ...dp].filter(p => p.daysLeft <= 30).sort((a,b) => a.daysLeft - b.daysLeft);
     cols = ['tracker','ref','permitNo','region','startDate','endDate','permit_status','notes'];
     title = 'Permit Expiry Alert (Expired + within 30 days)';
   }
   if (type==='fleet-permit-alert') {
     data = getPermits('fleet')
-      .map(p => ({ ...p, permit_status: permitStatus(p.endDate).label, daysLeft: permitStatus(p.endDate).days }))
+      .flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })))
       .filter(p => p.daysLeft <= 30)
       .sort((a,b) => a.daysLeft - b.daysLeft);
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','daysLeft','notes','createdBy'];
