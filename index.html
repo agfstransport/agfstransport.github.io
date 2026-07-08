@@ -4095,7 +4095,7 @@ function exportPermitsCSV(type) {
   const headers = ['Ref','Permit No','Permitted Region','Start Date','End Date','Status','Notes','Created By','Created At'];
   const rows = data.flatMap(p => expandPermitRegions(p).map(r => {
     const st = permitStatus(r.endDate);
-    return [p.ref, p.permitNo, r.region, r.startDate, r.endDate, st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
+    return [p.ref, p.permitNo, r.region, fmtDisplayDate(r.startDate), fmtDisplayDate(r.endDate), st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
   }));
   const csv = [headers, ...rows].map(r => r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl('AGFS_' + (type==='fleet'?'Fleet':'Driver') + '_Permits_' + fmtDate() + '.csv', csv, 'text/csv');
@@ -4860,25 +4860,25 @@ function generateReport(type) {
     title = 'Drivers by Type (Inhouse / Outsource)';
   }
   if (type==='fleet-permits') {
-    data = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label })));
+    data = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Fleet Permits';
   }
   if (type==='driver-permits') {
-    data = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label })));
+    data = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','notes','createdBy','createdAt'];
     title = 'Driver Permits';
   }
   if (type==='permit-expiry') {
-    const fp = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Fleet', region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })));
-    const dp = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Driver', region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })));
+    const fp = getPermits('fleet').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Fleet', region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
+    const dp = getPermits('driver').flatMap(p => expandPermitRegions(p).map(r => ({ ...p, tracker:'Driver', region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })));
     data = [...fp, ...dp].filter(p => p.daysLeft <= 30).sort((a,b) => a.daysLeft - b.daysLeft);
     cols = ['tracker','ref','permitNo','region','startDate','endDate','permit_status','notes'];
     title = 'Permit Expiry Alert (Expired + within 30 days)';
   }
   if (type==='fleet-permit-alert') {
     data = getPermits('fleet')
-      .flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days })))
+      .flatMap(p => expandPermitRegions(p).map(r => ({ ...p, region: r.region, permit_status: permitStatus(r.endDate).label, daysLeft: permitStatus(r.endDate).days, startDate: fmtDisplayDate(r.startDate), endDate: fmtDisplayDate(r.endDate) })))
       .filter(p => p.daysLeft <= 30)
       .sort((a,b) => a.daysLeft - b.daysLeft);
     cols = ['ref','permitNo','region','startDate','endDate','permit_status','daysLeft','notes','createdBy'];
@@ -4979,12 +4979,24 @@ function dl(name, csvContent, mime) {
 }
 function fmtDate() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
-// Format any date (ISO string, GMT string, or partial) → dd/mm/yyyy
+// Format any date (ISO string, dd/mm/yyyy string, GMT string, Date object) → dd/mm/yyyy, unambiguously
 function fmtDisplayDate(val) {
   if (!val) return '—';
-  const d = new Date(val);
-  if (isNaN(d.getTime())) return val;
-  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  if (val instanceof Date) {
+    if (isNaN(val.getTime())) return '—';
+    return String(val.getDate()).padStart(2,'0') + '/' + String(val.getMonth()+1).padStart(2,'0') + '/' + val.getFullYear();
+  }
+  const str = String(val).trim();
+  // ISO yyyy-mm-dd (optionally with a time component)
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + '/' + m[2] + '/' + m[1];
+  // Already dd/mm/yyyy — parse explicitly, never hand this to `new Date()` (it assumes mm/dd/yyyy and silently swaps day/month)
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[1].padStart(2,'0') + '/' + m[2].padStart(2,'0') + '/' + m[3];
+  // Fallback for unambiguous formats (e.g. "Wed Apr 01 2026 00:00:00 GMT+0400 (...)")
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+  return str;
 }
 
 // ═══════════════════════════════════════════
