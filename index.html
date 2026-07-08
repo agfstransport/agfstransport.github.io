@@ -3165,7 +3165,8 @@ function openDriverModal(driverId) {
     if (d) dFields.forEach(f=>{
       const el=document.getElementById('d-'+f);
       if(!el) return;
-      const val = d[f]||'';
+      let val = d[f]||'';
+      if ((f==='assign_date' || f==='lic_expiry') && val) val = toISODate(val);
       el.value = val;
       if(el.tagName==='SELECT' && val && el.value !== val) {
         const opt = document.createElement('option');
@@ -4895,6 +4896,7 @@ function generateReport(type) {
   document.getElementById('reportExportBtn').style.display = 'inline-flex';
   const wrap = document.getElementById('reportTable');
   if (!data.length) { wrap.innerHTML='<div class="no-data">No records for this report.</div>'; return; }
+  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate']);
   const renderCell = (r, c) => {
     if (c === 'permit_status') {
       const cls = r[c]==='Active'?'b-active':r[c]==='Expired'?'b-termination':'b-maint';
@@ -4905,6 +4907,7 @@ function generateReport(type) {
       const cls = { Active:'b-active', Deployed:'b-deployed', 'Under Maintenance':'b-maint', 'Total Loss':'b-termination', 'De-fleet':'b-defleet', Idle:'b-ops' }[r[c]] || 'b-ops';
       return `<span class="badge ${cls}">${r[c]||'—'}</span>`;
     }
+    if (DATE_COLS.has(c)) return r[c] ? fmtDisplayDate(r[c]) : '—';
     return r[c] || '—';
   };
   wrap.innerHTML = `<table><thead><tr>${cols.map(c=>`<th>${colLabel(c)}</th>`).join('')}</tr></thead><tbody>${
@@ -4928,9 +4931,13 @@ function exportCurrentReport() {
     permit_status:'Status', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left'
   };
   const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
+  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate']);
   const csv = [
     headers.join(','),
-    ...currentReport.map(r => currentReportCols.map(k => `"${(r[k]||'').toString().replace(/"/g,'""')}"`).join(','))
+    ...currentReport.map(r => currentReportCols.map(k => {
+      const v = DATE_COLS.has(k) ? (r[k] ? fmtDisplayDate(r[k]) : '') : (r[k]||'');
+      return `"${v.toString().replace(/"/g,'""')}"`;
+    }).join(','))
   ].join('\n');
   dl('AGFS_'+currentReportName+'_'+fmtDate()+'.csv', csv, 'text/csv');
 }
@@ -4959,8 +4966,12 @@ function exportDriverData(data, filename) {
   ];
   const headers = colMap.map(([,h]) => h);
   const keys    = colMap.map(([k]) => k);
+  const DATE_COLS = new Set(['assign_date','lic_expiry']);
   const csv = [headers.join(','), ...data.map(r =>
-    keys.map(k => `"${(r[k]||'').replace(/"/g,'""')}"`).join(',')
+    keys.map(k => {
+      const v = DATE_COLS.has(k) ? (r[k] ? fmtDisplayDate(r[k]) : '') : (r[k]||'');
+      return `"${v.toString().replace(/"/g,'""')}"`;
+    }).join(',')
   )].join('\n');
   dl(filename + '.csv', csv, 'text/csv');
 }
