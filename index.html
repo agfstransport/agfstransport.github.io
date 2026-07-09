@@ -2195,6 +2195,7 @@ const FLEET_COLS = [
   { key:'category',    label:'Category',    def:true  },
   { key:'own',         label:'Own/Rental',  def:true  },
   { key:'end_user',    label:'End User',    def:true  },
+  { key:'end_user_id', label:'End User ID', def:false },
   { key:'designation', label:'Designation', def:false },
   { key:'region',      label:'Region',      def:true  },
   { key:'status',      label:'Status',      def:true  },
@@ -2491,10 +2492,12 @@ function renderFleet() {
       <th>Actions</th>`;
   }
 
+  const fleetCustomDateKeys = new Set(getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key));
   const getCellVal = (v, key) => {
     if (key==='status')      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>`;
     if (key==='utilization') return v.utilization ? `<span class="badge ${utilBadge[v.utilization]||'b-ops'}">${v.utilization}</span>` : '—';
     if (key==='end_user')    return v.end_user || '<span style="color:#94a3b8">—</span>';
+    if (fleetCustomDateKeys.has(key)) return v[key] ? fmtDisplayDate(v[key]) : '—';
     return v[key] || '—';
   };
 
@@ -2702,6 +2705,7 @@ function renderDrivers() {
     dTheadRow.innerHTML = `<th class="cb-col"><input type="checkbox" id="driverSelectAll" onchange="toggleDriverSelectAll(this)"></th><th style="width:36px;text-align:center;color:#94a3b8;">#</th><th onclick="sortDrivers('name')">Driver Name ↕</th>${dHdrCols.filter(c=>c.key!=='name').map(c=>`<th onclick="sortDrivers('${c.key}')">${c.label}</th>`).join('')}<th>Actions</th>`;
   }
 
+  const driverCustomDateKeys = new Set(getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key));
   const getDCell = (d, key, veh, licEx, licSoon) => {
     if (key==='driver_id')    return d.driver_id||'—';
     if (key==='contact')      return d.contact||'—';
@@ -2715,6 +2719,7 @@ function renderDrivers() {
     if (key==='driver_class') return d.driver_class?`<span class="badge ${d.driver_class==='Heavy'?'b-maint':'b-deployed'}">${d.driver_class}</span>`:'—';
     if (key==='lic_expiry')   return d.lic_expiry?`<span style="color:${licEx?'#dc2626':licSoon?'#b45309':'#15803d'};font-weight:${licEx||licSoon?700:400}">${licEx?'⚠ ':licSoon?'⏰ ':''}${fmtDisplayDate(d.lic_expiry)}</span>`:'—';
     if (key==='notes')        return d.notes||'—';
+    if (driverCustomDateKeys.has(key)) return d[key] ? fmtDisplayDate(d[key]) : '—';
     return d[key]||'—';
   };
   const dVisCols = getOrderedCols('driver').filter(c => dVis[c.key] && c.key !== 'name');
@@ -2911,7 +2916,13 @@ function openVehicleModal(plate) {
       // Fill existing values if editing
       if (plate) {
         const vRec = vehicles.find(x=>x.plate===plate);
-        if (vRec) vCustomCols.forEach(c=>{const el=document.getElementById('vcf_'+c.key);if(el)el.value=vRec[c.key]||'';});
+        if (vRec) vCustomCols.forEach(c=>{
+          const el=document.getElementById('vcf_'+c.key);
+          if(!el) return;
+          let val = vRec[c.key]||'';
+          if (c.type==='date' && val) val = toISODate(val);
+          el.value = val;
+        });
       }
     } else {
       vCustomWrap.innerHTML = '';
@@ -3208,7 +3219,13 @@ function openDriverModal(driverId) {
       dCustomWrap.innerHTML = '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 8px;padding-top:10px;"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙ Custom Fields</div><div class=\"fgrid\">' + dCustomCols.map(c=>'<div class=\"fg\"><label>'+c.label+'</label><input type="'+(c.type||'text')+'" id="dcf_'+c.key+'" placeholder="'+c.label+'"></div>').join('') + '</div></div>';
       if (driverId) {
         const dRec = drivers.find(x=>x.driver_id===driverId);
-        if (dRec) dCustomCols.forEach(c=>{const el=document.getElementById('dcf_'+c.key);if(el)el.value=dRec[c.key]||'';});
+        if (dRec) dCustomCols.forEach(c=>{
+          const el=document.getElementById('dcf_'+c.key);
+          if(!el) return;
+          let val = dRec[c.key]||'';
+          if (c.type==='date' && val) val = toISODate(val);
+          el.value = val;
+        });
       }
     } else { dCustomWrap.innerHTML=''; dCustomWrap.style.display='none'; }
   }
@@ -4826,10 +4843,12 @@ function generateReport(type) {
   const drvColMap  = { name:'Driver Name', driver_id:'Employee ID', contact:'Contact', vehicle_plate:'Vehicle Plate', assign_date:'Assign Date', driver_type:'Type', status:'Status', location:'Location', lic_no:'Lic No', driver_class:'Class', lic_expiry:'Lic Expiry', notes:'Notes' };
   const driverGrpMap = { _group:'Group' };
   const permitColMap = { ref:'Plate / Driver', permitNo:'Permit No', permitName:'Permit Name', region:'Permitted Region', startDate:'Start Date', endDate:'End Date', permit_status:'Status', notes:'Notes', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left' };
-  const colLabel = k => driverGrpMap[k] || fleetColMap[k] || drvColMap[k] || permitColMap[k] || k.replace(/_/g,' ').toUpperCase();
+  const customFleetColMap  = Object.fromEntries(getCustomCols('fleet').map(c => [c.key, c.label]));
+  const customDriverColMap = Object.fromEntries(getCustomCols('driver').map(c => [c.key, c.label]));
+  const colLabel = k => driverGrpMap[k] || fleetColMap[k] || drvColMap[k] || permitColMap[k] || customFleetColMap[k] || customDriverColMap[k] || k.replace(/_/g,' ').toUpperCase();
 
-  if (type==='fleet-full')   { data=vehicles; cols=['plate','reg','make','category','own','portal','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','status','utilization','remarks']; title='Full Fleet Export'; }
-  if (type==='driver-full')  { data=drivers;  cols=['name','driver_id','contact','driver_type','vehicle_plate','assign_date','status','location','lic_no','driver_class','lic_expiry','notes']; title='Full Driver Export'; }
+  if (type==='fleet-full')   { data=vehicles; cols=['plate','reg','make','category','own','portal','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','status','utilization','remarks', ...getCustomCols('fleet').map(c=>c.key)]; title='Full Fleet Export'; }
+  if (type==='driver-full')  { data=drivers;  cols=['name','driver_id','contact','driver_type','vehicle_plate','assign_date','status','location','lic_no','driver_class','lic_expiry','notes', ...getCustomCols('driver').map(c=>c.key)]; title='Full Driver Export'; }
   if (type==='deployed')     { data=vehicles.filter(v=>v.status==='Deployed');           cols=['plate','make','end_user','end_user_id','phone','region','job_code']; title='Deployed Vehicles'; }
   if (type==='maintenance')  { data=vehicles.filter(v=>v.status==='Under Maintenance');  cols=['plate','make','end_user','region','remarks']; title='Under Maintenance'; }
   if (type==='unassigned')   { data=drivers.filter(d=>!d.vehicle_plate);                 cols=['name','driver_id','contact','location','status']; title='Unassigned Drivers'; }
@@ -4896,7 +4915,7 @@ function generateReport(type) {
   document.getElementById('reportExportBtn').style.display = 'inline-flex';
   const wrap = document.getElementById('reportTable');
   if (!data.length) { wrap.innerHTML='<div class="no-data">No records for this report.</div>'; return; }
-  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate']);
+  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate', ...getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key), ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const renderCell = (r, c) => {
     if (c === 'permit_status') {
       const cls = r[c]==='Active'?'b-active':r[c]==='Expired'?'b-termination':'b-maint';
@@ -4928,10 +4947,12 @@ function exportCurrentReport() {
     vehicle_plate:'Vehicle Plate', assign_date:'Assign Date', driver_type:'Inhouse/Outsource',
     location:'Location', lic_no:'License No', driver_class:'Driver Class', lic_expiry:'Lic Expiry', notes:'Notes',
     ref:'Plate / Driver', permitNo:'Permit No', permitName:'Permit Name', startDate:'Start Date', endDate:'End Date',
-    permit_status:'Status', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left'
+    permit_status:'Status', createdBy:'Created By', createdAt:'Created At', tracker:'Tracker', daysLeft:'Days Left',
+    ...Object.fromEntries(getCustomCols('fleet').map(c => [c.key, c.label])),
+    ...Object.fromEntries(getCustomCols('driver').map(c => [c.key, c.label])),
   };
   const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
-  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate']);
+  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate', ...getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key), ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const csv = [
     headers.join(','),
     ...currentReport.map(r => currentReportCols.map(k => {
@@ -4944,8 +4965,14 @@ function exportCurrentReport() {
 
 function exportFleetCSV() {
   const data = getFilteredFleet();
-  const keys = ['plate','reg','make','category','own','owner','end_user','end_user_id','designation','phone','region','status','utilization','job_code','gps_rfid','monthly_cost','contract','remarks'];
-  const csv = [keys.join(','), ...data.map(r=>keys.map(k=>`"${(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const cols = [...FLEET_COLS, ...getCustomCols('fleet')];
+  const keys = cols.map(c => c.key);
+  const headers = cols.map(c => c.label);
+  const dateKeys = new Set(getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key));
+  const csv = [headers.join(','), ...data.map(r=>keys.map(k=>{
+    const v = dateKeys.has(k) ? (r[k]?fmtDisplayDate(r[k]):'') : (r[k]||'');
+    return `"${v.toString().replace(/"/g,'""')}"`;
+  }).join(','))].join('\n');
   dl('AGFS_Fleet_'+fmtDate()+'.csv', csv, 'text/csv');
 }
 
@@ -4963,10 +4990,11 @@ function exportDriverData(data, filename) {
     ['driver_class',  'Driver Class'],
     ['lic_expiry',    'License Expiry'],
     ['notes',         'Notes'],
+    ...getCustomCols('driver').map(c => [c.key, c.label]),
   ];
   const headers = colMap.map(([,h]) => h);
   const keys    = colMap.map(([k]) => k);
-  const DATE_COLS = new Set(['assign_date','lic_expiry']);
+  const DATE_COLS = new Set(['assign_date','lic_expiry', ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const csv = [headers.join(','), ...data.map(r =>
     keys.map(k => {
       const v = DATE_COLS.has(k) ? (r[k] ? fmtDisplayDate(r[k]) : '') : (r[k]||'');
