@@ -855,7 +855,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         </select></div>
         <div class="fg"><label>Category <span style="color:var(--pink)">*</span></label><select id="v-category"><option value="">— Select —</option><option>Double Cabin Pickup</option><option>16 Seater</option><option>30 Seater</option><option>34 Seater</option><option>64 Seater</option><option>71 Seater</option><option>Panel Van</option><option>Saloon</option><option>SUV</option><option>Van</option><option>Motorcycle</option><option>Equipment</option></select></div>
         <div class="fg"><label>Own / Rental <span style="color:var(--pink)">*</span></label><select id="v-own"><option value="">— Select —</option><option>Own</option><option>Rental</option><option>Leased</option></select></div>
-        <div class="fg"><label>Owner / Lessor</label><select id="v-owner">
+        <div class="fg" id="vfg-owner"><label>Owner / Lessor</label><select id="v-owner">
           <option value="">— Select Owner —</option>
           <option>AGFS (Own)</option>
           <option>Dollar Middle East</option>
@@ -879,13 +879,13 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>Tariff Committee</option>
           <option>Global Direct Renta Car - Sole Proprietorship LLC (Thrifty)</option>
         </select></div>
-        <div class="fg"><label>Fuel Company</label><input type="text" id="v-portal" placeholder="ENOC, ADNOC, EMARAT…"></div>
-        <div class="fg"><label>Monthly Cost (AED)</label><input type="number" id="v-monthly_cost" placeholder="0"></div>
-        <div class="fg"><label>Contract Ref</label><input type="text" id="v-contract"></div>
-        <div class="fg"><label>End User (Driver Name)</label><div class="autocomplete-wrap"><input type="text" id="v-end_user" placeholder="Type to search driver…" oninput="acDriver(this)"><div class="autocomplete-drop" id="ac-driver"></div></div></div>
-        <div class="fg"><label>End User ID</label><input type="text" id="v-end_user_id" placeholder="Employee ID"></div>
-        <div class="fg"><label>Designation</label><input type="text" id="v-designation"></div>
-        <div class="fg"><label>Phone</label><input type="text" id="v-phone" placeholder="+971 50…"></div>
+        <div class="fg" id="vfg-portal"><label>Fuel Company</label><input type="text" id="v-portal" placeholder="ENOC, ADNOC, EMARAT…"></div>
+        <div class="fg" id="vfg-monthly_cost"><label>Monthly Cost (AED)</label><input type="number" id="v-monthly_cost" placeholder="0"></div>
+        <div class="fg" id="vfg-contract"><label>Contract Ref</label><input type="text" id="v-contract"></div>
+        <div class="fg" id="vfg-end_user"><label>End User (Driver Name)</label><div class="autocomplete-wrap"><input type="text" id="v-end_user" placeholder="Type to search driver…" oninput="acDriver(this)"><div class="autocomplete-drop" id="ac-driver"></div></div></div>
+        <div class="fg" id="vfg-end_user_id"><label>End User ID</label><input type="text" id="v-end_user_id" placeholder="Employee ID"></div>
+        <div class="fg" id="vfg-designation"><label>Designation</label><input type="text" id="v-designation"></div>
+        <div class="fg" id="vfg-phone"><label>Phone</label><input type="text" id="v-phone" placeholder="+971 50…"></div>
         <div class="fg"><label>Region / Location <span style="color:var(--pink)">*</span></label><select id="v-region">
           <option value="">— Select —</option>
           <option>Dubai</option>
@@ -895,14 +895,14 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>Western Region</option>
         </select></div>
         <div class="fg"><label>Job Code <span style="color:var(--pink)">*</span></label><input type="text" id="v-job_code"></div>
-        <div class="fg"><label>GPS / RFID</label><select id="v-gps_rfid">
+        <div class="fg" id="vfg-gps_rfid"><label>GPS / RFID</label><select id="v-gps_rfid">
           <option value="">— Select —</option>
           <option>GPS</option>
           <option>GPS + RFID</option>
           <option>GPS + Portable RFID Device</option>
         </select></div>
         <div class="fg"><label>Utilization <span style="color:var(--pink)">*</span></label><select id="v-utilization"><option value="">— Select Utilization —</option><option>Passenger</option><option>Operations</option></select></div>
-        <div class="fg full"><label>Remarks</label><textarea id="v-remarks" rows="2" placeholder="Any notes…"></textarea></div>
+        <div class="fg full" id="vfg-remarks"><label>Remarks</label><textarea id="v-remarks" rows="2" placeholder="Any notes…"></textarea></div>
         <div id="vCustomFieldsSection" class="full" style="grid-column:1/-1;display:none;"></div>
       </div>
     </div>
@@ -935,8 +935,8 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fg"><label>License Number <span style="color:var(--pink)">*</span></label><input type="text" id="d-lic_no" placeholder="e.g. UAE-1234567"></div>
         <div class="fg"><label>Driver Class <span style="color:var(--pink)">*</span></label><select id="d-driver_class"><option value="">— Select —</option><option>Heavy</option><option>Light</option></select></div>
         <div class="fg"><label>License Expiry <span style="color:var(--pink)">*</span></label><input type="date" id="d-lic_expiry"></div>
-        <div class="fg"><label>Assigned Vehicle Plate</label><div class="autocomplete-wrap"><input type="text" id="d-vehicle_plate" placeholder="Search plate…" oninput="acVehicle(this)"><div class="autocomplete-drop" id="ac-vehicle"></div></div></div>
-        <div class="fg"><label>Assign Date</label><input type="date" id="d-assign_date"></div>
+        <div class="fg" id="dfg-vehicle_plate"><label>Assigned Vehicle Plate</label><div class="autocomplete-wrap"><input type="text" id="d-vehicle_plate" placeholder="Search plate…" oninput="acVehicle(this)"><div class="autocomplete-drop" id="ac-vehicle"></div></div></div>
+        <div class="fg" id="dfg-assign_date"><label>Assign Date</label><input type="date" id="d-assign_date"></div>
         <div class="fg"><label>Location / Site <span style="color:var(--pink)">*</span></label><select id="d-location">
           <option value="">— Select Location —</option>
           <option>Dubai</option>
@@ -946,7 +946,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>Ras Al Khaimah</option>
           <option>Western Region</option>
         </select></div>
-        <div class="fg full"><label>Notes</label><textarea id="d-notes" rows="2"></textarea></div>
+        <div class="fg full" id="dfg-notes"><label>Notes</label><textarea id="d-notes" rows="2"></textarea></div>
         <div id="dCustomFieldsSection" style="grid-column:1/-1;display:none;"></div>
       </div>
     </div>
@@ -2190,20 +2190,20 @@ function renderDonut(id, data) {
 // ══════════════════════════════════════════
 const FLEET_COLS = [
   { key:'plate',       label:'Plate No',    locked:true  },
-  { key:'reg',         label:'Plate Code',  def:true  },
-  { key:'make',        label:'Make/Model',  def:true  },
-  { key:'category',    label:'Category',    def:true  },
-  { key:'own',         label:'Own/Rental',  def:true  },
+  { key:'reg',         label:'Plate Code',  def:true, protected:true },
+  { key:'make',        label:'Make/Model',  def:true, protected:true },
+  { key:'category',    label:'Category',    def:true, protected:true },
+  { key:'own',         label:'Own/Rental',  def:true, protected:true },
   { key:'end_user',    label:'End User',    def:true  },
   { key:'end_user_id', label:'End User ID', def:false },
   { key:'designation', label:'Designation', def:false },
-  { key:'region',      label:'Region',      def:true  },
-  { key:'status',      label:'Status',      def:true  },
-  { key:'utilization', label:'Utilization', def:true  },
+  { key:'region',      label:'Region',      def:true, protected:true },
+  { key:'status',      label:'Status',      def:true, protected:true },
+  { key:'utilization', label:'Utilization', def:true, protected:true },
   { key:'owner',       label:'Owner',       def:false },
   { key:'portal',      label:'Fuel Company',def:false },
   { key:'phone',       label:'Phone',       def:false },
-  { key:'job_code',    label:'Job Code',    def:false },
+  { key:'job_code',    label:'Job Code',    def:false, protected:true },
   { key:'gps_rfid',    label:'GPS/RFID',    def:false },
   { key:'monthly_cost',label:'Monthly Cost',def:false },
   { key:'contract',    label:'Contract',    def:false },
@@ -2212,17 +2212,17 @@ const FLEET_COLS = [
 
 const DRIVER_COLS = [
   { key:'name',         label:'Driver Name', locked:true },
-  { key:'driver_id',    label:'Employee ID', def:true  },
-  { key:'contact',      label:'Contact',     def:true  },
+  { key:'driver_id',    label:'Employee ID', def:true, protected:true  },
+  { key:'contact',      label:'Contact',     def:true, protected:true  },
   { key:'vehicle_plate',label:'Vehicle',     def:true  },
   { key:'vehicle_info', label:'Vehicle Info',def:true  },
   { key:'assign_date',  label:'Assign Date', def:true  },
-  { key:'driver_type',  label:'Type',        def:true  },
-  { key:'location',     label:'Location',    def:true  },
-  { key:'status',       label:'Status',      def:true  },
-  { key:'lic_no',       label:'Lic. Number', def:true  },
-  { key:'driver_class', label:'Driver Class',def:true  },
-  { key:'lic_expiry',   label:'Lic. Expiry', def:true  },
+  { key:'driver_type',  label:'Type',        def:true, protected:true  },
+  { key:'location',     label:'Location',    def:true, protected:true  },
+  { key:'status',       label:'Status',      def:true, protected:true  },
+  { key:'lic_no',       label:'Lic. Number', def:true, protected:true  },
+  { key:'driver_class', label:'Driver Class',def:true, protected:true  },
+  { key:'lic_expiry',   label:'Lic. Expiry', def:true, protected:true  },
   { key:'notes',        label:'Notes',       def:false },
 ];
 
@@ -2260,8 +2260,15 @@ function getCustomCols(tracker) {
 function saveCustomCols(tracker, cols) {
   localStorage.setItem('agfsCustomCols_' + tracker, JSON.stringify(cols));
 }
+function getRemovedBaseCols(tracker) {
+  try { return JSON.parse(localStorage.getItem('agfsRemovedBaseCols_' + tracker) || '[]'); } catch(e){ return []; }
+}
+function saveRemovedBaseCols(tracker, keys) {
+  localStorage.setItem('agfsRemovedBaseCols_' + tracker, JSON.stringify(keys));
+}
 function getAllCols(tracker) {
-  const base   = tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS;
+  const removed = getRemovedBaseCols(tracker);
+  const base   = (tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS).filter(c => !removed.includes(c.key));
   const custom = getCustomCols(tracker).map(c => ({ key:c.key, label:c.label, custom:true }));
   return [...base, ...custom];
 }
@@ -2290,17 +2297,30 @@ function buildColMenu(tracker, drop) {
       <span class="drag-handle" title="Drag to reorder">⠿</span>
       <input type="checkbox" ${vis[c.key]?'checked':''} ${c.locked?'disabled':''} onchange="toggleCol('${tracker}','${c.key}',this.checked)" onclick="event.stopPropagation()">
       <span style="flex:1;">${c.label}${c.locked?' <span style="color:#94a3b8;font-size:10px;">(always)</span>':''}</span>
-      ${c.custom && isAdmin ? `<span onclick="event.preventDefault();event.stopPropagation();removeCustomCol('${tracker}','${c.key}')" style="color:#dc2626;font-size:14px;cursor:pointer;padding:0 4px;line-height:1;" title="Remove column">✕</span>` : ''}
+      ${!c.locked && !c.protected && isAdmin ? `<span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();removeCustomCol('${tracker}','${c.key}')" style="color:#dc2626;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1;" title="Remove column">✕</span>` : ''}
     </div>`).join('');
   const adminAddBtn = isAdmin ? `
     <div style="padding:8px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">
       <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;" onclick="openAddColModal('${tracker}')">+ Add Custom Column</button>
     </div>` : '';
+  const removedBase = isAdmin ? getRemovedBaseCols(tracker) : [];
+  const restoreSection = removedBase.length ? `
+    <div style="padding:6px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Removed Columns</div>
+      ${removedBase.map(k => {
+        const def = (tracker==='fleet'?FLEET_COLS:DRIVER_COLS).find(c=>c.key===k);
+        if (!def) return '';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;">
+          <span style="color:#64748b;">${def.label}</span>
+          <span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();restoreBaseCol('${tracker}','${k}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
+        </div>`;
+      }).join('')}
+    </div>` : '';
   const resetBtn = `
     <div style="padding:4px 14px 6px;">
       <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;font-size:11px;" onclick="resetColOrder('${tracker}')">↺ Reset Order</button>
     </div>`;
-  drop.innerHTML = '<div class="col-toggle-hd">Show / Hide · Drag to Reorder</div>' + items + adminAddBtn + resetBtn;
+  drop.innerHTML = '<div class="col-toggle-hd">Show / Hide · Drag to Reorder</div>' + items + adminAddBtn + restoreSection + resetBtn;
 }
 
 let _dragSrcKey = null;
@@ -2358,11 +2378,33 @@ function toggleCol(tracker, key, checked) {
 
 function removeCustomCol(tracker, key) {
   if (currentUser?.role !== 'admin') return;
-  if (!confirm('Remove this custom column? Data already saved in records will not be deleted.')) return;
-  const custom = getCustomCols(tracker).filter(c => c.key !== key);
-  saveCustomCols(tracker, custom);
+  const isCustom = getCustomCols(tracker).some(c => c.key === key);
+  const msg = isCustom
+    ? 'Remove this custom column? Data already saved in records will not be deleted.'
+    : 'Remove this column from the list? Data already saved in records will not be deleted, and you can restore it anytime from the "Removed Columns" section.';
+  if (!confirm(msg)) return;
+  if (isCustom) {
+    const custom = getCustomCols(tracker).filter(c => c.key !== key);
+    saveCustomCols(tracker, custom);
+  } else {
+    const removed = getRemovedBaseCols(tracker);
+    if (!removed.includes(key)) removed.push(key);
+    saveRemovedBaseCols(tracker, removed);
+  }
   const vis = getVisibleCols(tracker);
   delete vis[key];
+  saveVisibleCols(tracker, vis);
+  document.querySelectorAll('.col-toggle-drop').forEach(d => d.classList.remove('open'));
+  if (tracker === 'fleet') renderFleet();
+  else renderDrivers();
+}
+
+function restoreBaseCol(tracker, key) {
+  if (currentUser?.role !== 'admin') return;
+  const removed = getRemovedBaseCols(tracker).filter(k => k !== key);
+  saveRemovedBaseCols(tracker, removed);
+  const vis = getVisibleCols(tracker);
+  vis[key] = true;
   saveVisibleCols(tracker, vis);
   document.querySelectorAll('.col-toggle-drop').forEach(d => d.classList.remove('open'));
   if (tracker === 'fleet') renderFleet();
@@ -2843,6 +2885,13 @@ function openVehicleModal(plate) {
   const vvg = document.getElementById('vVerifyGrid');
   if (vvg) vvg.innerHTML = '';
 
+  // Hide fields whose column has been removed by an admin
+  const removedFleetCols = getRemovedBaseCols('fleet');
+  vFields.forEach(f => {
+    const wrap = document.getElementById('vfg-' + f);
+    if (wrap) wrap.style.display = removedFleetCols.includes(f) ? 'none' : '';
+  });
+
   if (plate) {
     const v = vehicles.find(x=>x.plate===plate);
     if (v) vFields.forEach(f=>{
@@ -3170,6 +3219,13 @@ function openDriverModal(driverId) {
   dFields.forEach(f=>{ const el=document.getElementById('d-'+f); if(el) el.value=''; });
   document.getElementById('d-status').value = 'Active';
   document.getElementById('dVerifyBox').style.display = 'none';
+
+  // Hide fields whose column has been removed by an admin
+  const removedDriverCols = getRemovedBaseCols('driver');
+  dFields.forEach(f => {
+    const wrap = document.getElementById('dfg-' + f);
+    if (wrap) wrap.style.display = removedDriverCols.includes(f) ? 'none' : '';
+  });
 
   if (driverId) {
     const d = drivers.find(x=>x.driver_id===driverId);
@@ -4847,8 +4903,8 @@ function generateReport(type) {
   const customDriverColMap = Object.fromEntries(getCustomCols('driver').map(c => [c.key, c.label]));
   const colLabel = k => driverGrpMap[k] || fleetColMap[k] || drvColMap[k] || permitColMap[k] || customFleetColMap[k] || customDriverColMap[k] || k.replace(/_/g,' ').toUpperCase();
 
-  if (type==='fleet-full')   { data=vehicles; cols=['plate','reg','make','category','own','portal','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','status','utilization','remarks', ...getCustomCols('fleet').map(c=>c.key)]; title='Full Fleet Export'; }
-  if (type==='driver-full')  { data=drivers;  cols=['name','driver_id','contact','driver_type','vehicle_plate','assign_date','status','location','lic_no','driver_class','lic_expiry','notes', ...getCustomCols('driver').map(c=>c.key)]; title='Full Driver Export'; }
+  if (type==='fleet-full')   { data=vehicles; cols=['plate','reg','make','category','own','portal','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','status','utilization','remarks'].filter(k=>!getRemovedBaseCols('fleet').includes(k)).concat(getCustomCols('fleet').map(c=>c.key)); title='Full Fleet Export'; }
+  if (type==='driver-full')  { data=drivers;  cols=['name','driver_id','contact','driver_type','vehicle_plate','assign_date','status','location','lic_no','driver_class','lic_expiry','notes'].filter(k=>!getRemovedBaseCols('driver').includes(k)).concat(getCustomCols('driver').map(c=>c.key)); title='Full Driver Export'; }
   if (type==='deployed')     { data=vehicles.filter(v=>v.status==='Deployed');           cols=['plate','make','end_user','end_user_id','phone','region','job_code']; title='Deployed Vehicles'; }
   if (type==='maintenance')  { data=vehicles.filter(v=>v.status==='Under Maintenance');  cols=['plate','make','end_user','region','remarks']; title='Under Maintenance'; }
   if (type==='unassigned')   { data=drivers.filter(d=>!d.vehicle_plate);                 cols=['name','driver_id','contact','location','status']; title='Unassigned Drivers'; }
@@ -4965,7 +5021,7 @@ function exportCurrentReport() {
 
 function exportFleetCSV() {
   const data = getFilteredFleet();
-  const cols = [...FLEET_COLS, ...getCustomCols('fleet')];
+  const cols = getAllCols('fleet');
   const keys = cols.map(c => c.key);
   const headers = cols.map(c => c.label);
   const dateKeys = new Set(getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key));
@@ -4977,6 +5033,7 @@ function exportFleetCSV() {
 }
 
 function exportDriverData(data, filename) {
+  const removedD = getRemovedBaseCols('driver');
   const colMap = [
     ['name',          'Driver Name'],
     ['driver_id',     'Employee ID'],
@@ -4990,8 +5047,8 @@ function exportDriverData(data, filename) {
     ['driver_class',  'Driver Class'],
     ['lic_expiry',    'License Expiry'],
     ['notes',         'Notes'],
-    ...getCustomCols('driver').map(c => [c.key, c.label]),
-  ];
+  ].filter(([k]) => !removedD.includes(k));
+  colMap.push(...getCustomCols('driver').map(c => [c.key, c.label]));
   const headers = colMap.map(([,h]) => h);
   const keys    = colMap.map(([k]) => k);
   const DATE_COLS = new Set(['assign_date','lic_expiry', ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
