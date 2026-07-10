@@ -456,6 +456,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
     <!-- PERMIT ALERTS -->
     <div id="dashPermitAlert"></div>
+    <div id="dashLicRegAlert"></div>
 
     <!-- ══════════ FLEET SECTION ══════════ -->
 
@@ -1701,6 +1702,7 @@ function updateCounts() {
   const dd = document.getElementById('d-drivers'); if(dd) dd.textContent = drivers.length;
   const nf = document.getElementById('nc-fleet'); if(nf) nf.textContent = vehicles.length;
   const nd = document.getElementById('nc-drivers'); if(nd) nd.textContent = drivers.length;
+  updatePermitCount();
 }
 
 // ═══════════════════════════════════════════
@@ -1747,6 +1749,31 @@ function renderDashboard() {
     dashAlert.innerHTML = '';
     if (expiredPermits)  dashAlert.innerHTML += `<div style="background:rgba(239,68,68,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.3);" onclick="switchTab('permits')">⛔ <strong>${expiredPermits}</strong> permit${expiredPermits>1?'s':''} EXPIRED (Fleet + Driver) — click to review</div>`;
     if (expiringPermits) dashAlert.innerHTML += `<div style="background:rgba(245,158,11,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(245,158,11,0.3);" onclick="switchTab('permits')">⚠️ <strong>${expiringPermits}</strong> permit${expiringPermits>1?'s':''} expiring within 30 days (Fleet + Driver) — click to review</div>`;
+  }
+
+  // ── License + Registration expiry alert banner (same style as permits) ──
+  const licRegEl = document.getElementById('dashLicRegAlert');
+  if (licRegEl) {
+    licRegEl.innerHTML = '';
+    // Driver license expiry
+    const licExpired  = drivers.filter(d => d.lic_expiry && permitStatus(d.lic_expiry).days < 0).length;
+    const licExpiring = drivers.filter(d => d.lic_expiry && permitStatus(d.lic_expiry).days >= 0 && permitStatus(d.lic_expiry).days <= 30).length;
+    if (licExpired)  licRegEl.innerHTML += `<div style="background:rgba(239,68,68,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.3);" onclick="switchTab('drivers')">⛔ <strong>${licExpired}</strong> driver license${licExpired>1?'s':''} EXPIRED — click to review</div>`;
+    if (licExpiring) licRegEl.innerHTML += `<div style="background:rgba(245,158,11,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(245,158,11,0.3);" onclick="switchTab('drivers')">⚠️ <strong>${licExpiring}</strong> driver license${licExpiring>1?'s':''} expiring within 30 days — click to review</div>`;
+
+    // Vehicle registration expiry — picks up any Fleet custom column whose label suggests registration/Mulkiya expiry
+    const regCols = getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label));
+    if (regCols.length) {
+      let regExpired = 0, regExpiring = 0;
+      vehicles.forEach(v => regCols.forEach(c => {
+        if (!v[c.key]) return;
+        const days = permitStatus(v[c.key]).days;
+        if (days < 0) regExpired++;
+        else if (days <= 30) regExpiring++;
+      }));
+      if (regExpired)  licRegEl.innerHTML += `<div style="background:rgba(239,68,68,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.3);" onclick="switchTab('fleet')">⛔ <strong>${regExpired}</strong> vehicle registration${regExpired>1?'s':''} EXPIRED — click to review</div>`;
+      if (regExpiring) licRegEl.innerHTML += `<div style="background:rgba(245,158,11,0.92);border-radius:10px;padding:10px 16px;margin-bottom:10px;font-size:12px;color:#fff;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;box-shadow:0 4px 14px rgba(245,158,11,0.3);" onclick="switchTab('fleet')">⚠️ <strong>${regExpiring}</strong> vehicle registration${regExpiring>1?'s':''} expiring within 30 days — click to review</div>`;
+    }
   }
 
   // ── Fleet by status bars ────────────────────────────────────
@@ -2534,13 +2561,11 @@ function renderFleet() {
       <th>Actions</th>`;
   }
 
-  const fleetCustomDateKeys = new Set(getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key));
   const getCellVal = (v, key) => {
     if (key==='status')      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>`;
     if (key==='utilization') return v.utilization ? `<span class="badge ${utilBadge[v.utilization]||'b-ops'}">${v.utilization}</span>` : '—';
     if (key==='end_user')    return v.end_user || '<span style="color:#94a3b8">—</span>';
-    if (fleetCustomDateKeys.has(key)) return v[key] ? fmtDisplayDate(v[key]) : '—';
-    return v[key] || '—';
+    return v[key] ? smartDateFormat(v[key]) : '—';
   };
 
   const visCols = getOrderedCols('fleet').filter(c => vis[c.key] && c.key !== 'plate');
@@ -2747,7 +2772,6 @@ function renderDrivers() {
     dTheadRow.innerHTML = `<th class="cb-col"><input type="checkbox" id="driverSelectAll" onchange="toggleDriverSelectAll(this)"></th><th style="width:36px;text-align:center;color:#94a3b8;">#</th><th onclick="sortDrivers('name')">Driver Name ↕</th>${dHdrCols.filter(c=>c.key!=='name').map(c=>`<th onclick="sortDrivers('${c.key}')">${c.label}</th>`).join('')}<th>Actions</th>`;
   }
 
-  const driverCustomDateKeys = new Set(getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key));
   const getDCell = (d, key, veh, licEx, licSoon) => {
     if (key==='driver_id')    return d.driver_id||'—';
     if (key==='contact')      return d.contact||'—';
@@ -2761,8 +2785,7 @@ function renderDrivers() {
     if (key==='driver_class') return d.driver_class?`<span class="badge ${d.driver_class==='Heavy'?'b-maint':'b-deployed'}">${d.driver_class}</span>`:'—';
     if (key==='lic_expiry')   return d.lic_expiry?`<span style="color:${licEx?'#dc2626':licSoon?'#b45309':'#15803d'};font-weight:${licEx||licSoon?700:400}">${licEx?'⚠ ':licSoon?'⏰ ':''}${fmtDisplayDate(d.lic_expiry)}</span>`:'—';
     if (key==='notes')        return d.notes||'—';
-    if (driverCustomDateKeys.has(key)) return d[key] ? fmtDisplayDate(d[key]) : '—';
-    return d[key]||'—';
+    return d[key] ? smartDateFormat(d[key]) : '—';
   };
   const dVisCols = getOrderedCols('driver').filter(c => dVis[c.key] && c.key !== 'name');
 
@@ -4971,7 +4994,6 @@ function generateReport(type) {
   document.getElementById('reportExportBtn').style.display = 'inline-flex';
   const wrap = document.getElementById('reportTable');
   if (!data.length) { wrap.innerHTML='<div class="no-data">No records for this report.</div>'; return; }
-  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate', ...getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key), ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const renderCell = (r, c) => {
     if (c === 'permit_status') {
       const cls = r[c]==='Active'?'b-active':r[c]==='Expired'?'b-termination':'b-maint';
@@ -4982,8 +5004,7 @@ function generateReport(type) {
       const cls = { Active:'b-active', Deployed:'b-deployed', 'Under Maintenance':'b-maint', 'Total Loss':'b-termination', 'De-fleet':'b-defleet', Idle:'b-ops' }[r[c]] || 'b-ops';
       return `<span class="badge ${cls}">${r[c]||'—'}</span>`;
     }
-    if (DATE_COLS.has(c)) return r[c] ? fmtDisplayDate(r[c]) : '—';
-    return r[c] || '—';
+    return r[c] ? smartDateFormat(r[c]) : '—';
   };
   wrap.innerHTML = `<table><thead><tr>${cols.map(c=>`<th>${colLabel(c)}</th>`).join('')}</tr></thead><tbody>${
     data.map(r=>`<tr>${cols.map(c=>`<td>${renderCell(r,c)}</td>`).join('')}</tr>`).join('')
@@ -5008,11 +5029,10 @@ function exportCurrentReport() {
     ...Object.fromEntries(getCustomCols('driver').map(c => [c.key, c.label])),
   };
   const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
-  const DATE_COLS = new Set(['assign_date','lic_expiry','startDate','endDate', ...getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key), ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const csv = [
     headers.join(','),
     ...currentReport.map(r => currentReportCols.map(k => {
-      const v = DATE_COLS.has(k) ? (r[k] ? fmtDisplayDate(r[k]) : '') : (r[k]||'');
+      const v = smartDateFormat(r[k]||'');
       return `"${v.toString().replace(/"/g,'""')}"`;
     }).join(','))
   ].join('\n');
@@ -5024,9 +5044,8 @@ function exportFleetCSV() {
   const cols = getAllCols('fleet');
   const keys = cols.map(c => c.key);
   const headers = cols.map(c => c.label);
-  const dateKeys = new Set(getCustomCols('fleet').filter(c=>c.type==='date').map(c=>c.key));
   const csv = [headers.join(','), ...data.map(r=>keys.map(k=>{
-    const v = dateKeys.has(k) ? (r[k]?fmtDisplayDate(r[k]):'') : (r[k]||'');
+    const v = smartDateFormat(r[k]||'');
     return `"${v.toString().replace(/"/g,'""')}"`;
   }).join(','))].join('\n');
   dl('AGFS_Fleet_'+fmtDate()+'.csv', csv, 'text/csv');
@@ -5051,10 +5070,9 @@ function exportDriverData(data, filename) {
   colMap.push(...getCustomCols('driver').map(c => [c.key, c.label]));
   const headers = colMap.map(([,h]) => h);
   const keys    = colMap.map(([k]) => k);
-  const DATE_COLS = new Set(['assign_date','lic_expiry', ...getCustomCols('driver').filter(c=>c.type==='date').map(c=>c.key)]);
   const csv = [headers.join(','), ...data.map(r =>
     keys.map(k => {
-      const v = DATE_COLS.has(k) ? (r[k] ? fmtDisplayDate(r[k]) : '') : (r[k]||'');
+      const v = smartDateFormat(r[k]||'');
       return `"${v.toString().replace(/"/g,'""')}"`;
     }).join(',')
   )].join('\n');
@@ -5078,6 +5096,20 @@ function dl(name, csvContent, mime) {
 function fmtDate() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
 // Format any date (ISO string, dd/mm/yyyy string, GMT string, Date object) → dd/mm/yyyy, unambiguously
+// Detect whether a raw value is date-shaped, regardless of whether its column was tagged type:'date'
+// (custom columns auto-created during CSV import never get a type, so we can't rely on that alone)
+function looksLikeDate(val) {
+  if (!val) return false;
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return true;                        // ISO
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) return true;                  // dd/mm/yyyy
+  if (/^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\s\d{2}:\d{2}:\d{2}/.test(s)) return true; // "Tue Jul 01 2025 00:00:00 GMT..."
+  return false;
+}
+function smartDateFormat(val) {
+  return looksLikeDate(val) ? fmtDisplayDate(val) : val;
+}
+
 function fmtDisplayDate(val) {
   if (!val) return '—';
   if (val instanceof Date) {
