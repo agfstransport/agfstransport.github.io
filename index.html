@@ -2862,8 +2862,9 @@ function renderDrivers() {
 
   tbody.innerHTML = dPageData.map(d => {
     const veh    = vehicles.find(v=>v.plate===d.vehicle_plate);
-    const licEx  = d.lic_expiry && new Date(d.lic_expiry) < new Date();
-    const licSoon= d.lic_expiry && !licEx && (new Date(d.lic_expiry)-new Date()) < 60*24*3600000;
+    const licDays= d.lic_expiry ? permitStatus(d.lic_expiry).days : 9999;
+    const licEx  = d.lic_expiry && licDays < 0;
+    const licSoon= d.lic_expiry && !licEx && licDays <= 30;
     return `<tr id="drow-${d.driver_id}">
       <td class="cb-col"><input type="checkbox" class="dcb" data-id="${d.driver_id}" onchange="updateDriverSel()"></td>
       <td style="text-align:center;color:#94a3b8;font-size:11px;font-weight:600;">${_dIdx++}</td>
@@ -3695,13 +3696,13 @@ function renderHistory() {
       f.oldVal
         ? `<div style="font-size:11px;color:#475569;padding:2px 0;border-bottom:1px solid #f8f9fc;">
             <span style="color:#94a3b8;min-width:110px;display:inline-block;">${f.label}</span>
-            <span style="text-decoration:line-through;color:#94a3b8;">${f.oldVal||'—'}</span>
+            <span style="text-decoration:line-through;color:#94a3b8;">${smartDateFormat(f.oldVal)||'—'}</span>
             <span style="color:#374151;margin:0 4px;">→</span>
-            <span style="font-weight:600;color:#15803d;">${f.newVal||'—'}</span>
+            <span style="font-weight:600;color:#15803d;">${smartDateFormat(f.newVal)||'—'}</span>
            </div>`
         : `<div style="font-size:11px;color:#475569;padding:2px 0;">
             <span style="color:#94a3b8;min-width:110px;display:inline-block;">${f.label}</span>
-            <span style="font-weight:600;">${f.newVal||'—'}</span>
+            <span style="font-weight:600;">${smartDateFormat(f.newVal)||'—'}</span>
            </div>`
     ).join('');
     const isAdmin = currentUser?.role === 'admin';
@@ -4156,8 +4157,9 @@ function expandPermitRegions(p) {
 
 function permitStatus(endDate) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const end   = new Date(endDate);
+  const end   = new Date(toISODate(endDate));
   const diff  = Math.ceil((end - today) / (1000*60*60*24));
+  if (isNaN(diff)) return { label:'—', cls:'b-ops', days: 9999 };
   if (diff < 0)  return { label:'Expired',    cls:'b-termination', days: diff };
   if (diff <= 30) return { label:`Expires in ${diff}d`, cls:'b-maint', days: diff };
   return { label:'Active', cls:'b-active', days: diff };
@@ -5007,15 +5009,11 @@ function generateReport(type) {
   if (type==='maintenance')  { data=vehicles.filter(v=>v.status==='Under Maintenance');  cols=['plate','make','end_user','region','remarks']; title='Under Maintenance'; }
   if (type==='unassigned')   { data=drivers.filter(d=>!d.vehicle_plate);                 cols=['name','driver_id','contact','location','status']; title='Unassigned Drivers'; }
   if (type==='lic-expiry') {
-    const nowMs = new Date().getTime();
-    data = drivers.filter(d => {
-      if (!d.lic_expiry) return false;
-      const days = Math.ceil((new Date(d.lic_expiry).getTime() - nowMs) / (1000*60*60*24));
-      return days <= 30;
-    }).map(d => {
-      const days = Math.ceil((new Date(d.lic_expiry).getTime() - nowMs) / (1000*60*60*24));
-      return { ...d, days_left: days, expiry_status: days < 0 ? 'Expired' : days <= 7 ? 'Critical' : 'Warning' };
-    }).sort((a, b) => a.days_left - b.days_left);
+    data = drivers.filter(d => d.lic_expiry && permitStatus(d.lic_expiry).days <= 30)
+      .map(d => {
+        const days = permitStatus(d.lic_expiry).days;
+        return { ...d, days_left: days, expiry_status: days < 0 ? 'Expired' : days <= 7 ? 'Critical' : 'Warning' };
+      }).sort((a, b) => a.days_left - b.days_left);
     cols = ['name','driver_id','contact','vehicle_plate','lic_no','driver_class','lic_expiry','days_left','expiry_status','status'];
     title = 'License Expiry Alert (Expired + within 30 days)';
   }
