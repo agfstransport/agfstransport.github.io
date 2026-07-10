@@ -953,9 +953,9 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fg"><label>Status <span style="color:var(--pink)">*</span></label><select id="d-status"><option>Active</option><option>Annual Leave</option><option>Sick Leave</option><option>Inactive</option><option>Resignation</option><option>Termination</option><option>Police Custody</option></select></div>
         <div class="fg"><label>License Number <span style="color:var(--pink)">*</span></label><input type="text" id="d-lic_no" placeholder="e.g. UAE-1234567"></div>
         <div class="fg"><label>Driver Class <span style="color:var(--pink)">*</span></label><select id="d-driver_class"><option value="">— Select —</option><option>Heavy</option><option>Light</option></select></div>
-        <div class="fg"><label>License Expiry <span style="color:var(--pink)">*</span></label><input type="date" id="d-lic_expiry"></div>
+        <div class="fg"><label>License Expiry <span style="color:var(--pink)">*</span></label><input type="date" id="d-lic_expiry" lang="en-GB"></div>
         <div class="fg" id="dfg-vehicle_plate"><label>Assigned Vehicle Plate</label><div class="autocomplete-wrap"><input type="text" id="d-vehicle_plate" placeholder="Search plate…" oninput="acVehicle(this)"><div class="autocomplete-drop" id="ac-vehicle"></div></div></div>
-        <div class="fg" id="dfg-assign_date"><label>Assign Date</label><input type="date" id="d-assign_date"></div>
+        <div class="fg" id="dfg-assign_date"><label>Assign Date</label><input type="date" id="d-assign_date" lang="en-GB"></div>
         <div class="fg"><label>Location / Site <span style="color:var(--pink)">*</span></label><select id="d-location">
           <option value="">— Select Location —</option>
           <option>Dubai</option>
@@ -3050,7 +3050,7 @@ function openVehicleModal(plate) {
       vCustomWrap.style.display = 'block';
       vCustomWrap.innerHTML = `<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 8px;padding-top:10px;">
         <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙ Custom Fields</div>
-        <div class="fgrid">${vCustomCols.map(c=>`<div class="fg"><label>${c.label}</label><input type="${c.type||'text'}" id="vcf_${c.key}" placeholder="${c.label}"></div>`).join('')}</div>
+        <div class="fgrid">${vCustomCols.map(c=>`<div class="fg"><label>${c.label}</label><input type="${c.type||'text'}" ${c.type==='date'?'lang="en-GB"':''} id="vcf_${c.key}" placeholder="${c.label}"></div>`).join('')}</div>
       </div>`;
       // Fill existing values if editing
       if (plate) {
@@ -3362,7 +3362,7 @@ function openDriverModal(driverId) {
   if (dCustomWrap) {
     if (dCustomCols.length) {
       dCustomWrap.style.display = 'block';
-      dCustomWrap.innerHTML = '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 8px;padding-top:10px;"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙ Custom Fields</div><div class=\"fgrid\">' + dCustomCols.map(c=>'<div class=\"fg\"><label>'+c.label+'</label><input type="'+(c.type||'text')+'" id="dcf_'+c.key+'" placeholder="'+c.label+'"></div>').join('') + '</div></div>';
+      dCustomWrap.innerHTML = '<div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 8px;padding-top:10px;"><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">⚙ Custom Fields</div><div class=\"fgrid\">' + dCustomCols.map(c=>'<div class=\"fg\"><label>'+c.label+'</label><input type="'+(c.type||'text')+'" '+(c.type==='date'?'lang="en-GB"':'')+' id="dcf_'+c.key+'" placeholder="'+c.label+'"></div>').join('') + '</div></div>';
       if (driverId) {
         const dRec = drivers.find(x=>x.driver_id===driverId);
         if (dRec) dCustomCols.forEach(c=>{
@@ -4441,7 +4441,7 @@ function openRequestModal(type) {
   fgrid.innerHTML = '<div class="fgrid">' + fields.map(f=>`
     <div class="fg ${f.type==='date'?'':''}">
       <label>${f.label}${f.req?' <span style="color:var(--pink)">*</span>':''}</label>
-      <input type="${f.type}" id="${f.id}" placeholder="${f.placeholder||''}">
+      <input type="${f.type}" ${f.type==='date'?'lang="en-GB"':''} id="${f.id}" placeholder="${f.placeholder||''}">
     </div>`).join('') + '</div>';
   document.getElementById('request-notes').value = '';
   document.getElementById('requestModal').classList.add('open');
@@ -4647,8 +4647,8 @@ function updatePermitRegionDates() {
   datesList.innerHTML = checked.map(r => `
     <div class="prdate-row" data-region="${r}" style="display:grid;grid-template-columns:120px 1fr 1fr auto;align-items:end;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;">
       <span style="font-size:12px;font-weight:600;color:var(--text);">${r}</span>
-      <div><label style="font-size:10px;color:var(--muted);">Start Date *</label><input type="date" class="prdate-start" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.start||''}"></div>
-      <div><label style="font-size:10px;color:var(--muted);">End Date *</label><input type="date" class="prdate-end" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.end||''}"></div>
+      <div><label style="font-size:10px;color:var(--muted);">Start Date *</label><input type="date" class="prdate-start" lang="en-GB" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.start||''}"></div>
+      <div><label style="font-size:10px;color:var(--muted);">End Date *</label><input type="date" class="prdate-end" lang="en-GB" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;" value="${existing[r]?.end||''}"></div>
       <button type="button" class="btn btn-ghost btn-xs" onclick="clearPermitRegionDates('${r.replace(/'/g,"\\'")}')" style="height:28px;">Clear</button>
     </div>`).join('');
 }
