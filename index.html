@@ -1305,6 +1305,10 @@ let dashboardQuickFilter = null; // { scope: 'fleet-reg'|'driver-lic'|'permit-fl
 
 function setDashboardQuickFilter(scope, mode, tab) {
   dashboardQuickFilter = { scope, mode };
+  fleetPage = 1;
+  driverPage = 1;
+  fleetPermitPage = 1;
+  driverPermitPage = 1;
   switchTab(tab);
 }
 function clearDashboardQuickFilter() {
@@ -5212,6 +5216,8 @@ function switchTab(tab) {
   if (pg) { pg.style.display = ''; pg.classList.add('active'); }
   if (tab === 'access') { renderFieldConfigPanel(); renderUsers(); renderHistory(); updateApprovalBadge(); }
   if (tab === 'permits') { renderPermits(); }
+  if (tab === 'fleet')   { renderFleet(); }
+  if (tab === 'drivers') { renderDrivers(); }
 }
 
 // ═══════════════════════════════════════════
