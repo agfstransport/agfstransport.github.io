@@ -2590,7 +2590,7 @@ function getFilteredFleet() {
     return true;
   }).sort((a,b) => {
     const av=a[fleetSort.f]||'', bv=b[fleetSort.f]||'';
-    return String(av).localeCompare(String(bv)) * fleetSort.d;
+    return smartSortCompare(av, bv) * fleetSort.d;
   });
 }
 
@@ -2811,7 +2811,7 @@ function getFilteredDrivers() {
       if (!match) return false;
     }
     return true;
-  }).sort((a,b)=>String(a[driverSort.f]||'').localeCompare(String(b[driverSort.f]||''))*driverSort.d);
+  }).sort((a,b)=>smartSortCompare(a[driverSort.f], b[driverSort.f])*driverSort.d);
 }
 
 function renderDrivers() {
@@ -5181,6 +5181,16 @@ function looksLikeDate(val) {
 }
 function smartDateFormat(val) {
   return looksLikeDate(val) ? fmtDisplayDate(val) : val;
+}
+// Compares two values for sorting: if both look like dates, compare chronologically (via ISO conversion);
+// otherwise falls back to normal text comparison. Fixes date columns (esp. dd/mm/yyyy) sorting as plain text.
+function smartSortCompare(av, bv) {
+  av = av || ''; bv = bv || '';
+  if (looksLikeDate(av) && looksLikeDate(bv)) {
+    const ai = toISODate(av), bi = toISODate(bv);
+    if (ai && bi) return ai.localeCompare(bi);
+  }
+  return String(av).localeCompare(String(bv));
 }
 
 function fmtDisplayDate(val) {
