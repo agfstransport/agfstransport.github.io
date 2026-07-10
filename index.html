@@ -4901,8 +4901,20 @@ function previewImport(input) {
   reader.readAsText(file);
 }
 
+// Any date-shaped CSV value gets normalized to unambiguous ISO (yyyy-mm-dd) before it's ever sent
+// to the Sheet — this prevents the Sheet's own locale (e.g. US) from silently swapping day/month
+// on an ambiguous slash-date like "04/11/2026".
+function normalizeDatesInRecord(rec) {
+  const out = { ...rec };
+  Object.keys(out).forEach(k => {
+    if (looksLikeDate(out[k])) out[k] = toISODate(out[k]);
+  });
+  return out;
+}
+
 async function confirmImport() {
   if (!_importParsed.length) return;
+  _importParsed = _importParsed.map(normalizeDatesInRecord);
   const isAdmin = currentUser?.role === 'admin';
 
   // Non-admin + fleet: route to approval. Non-admin + driver: allow directly.
