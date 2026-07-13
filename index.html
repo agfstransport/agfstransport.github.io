@@ -4963,12 +4963,15 @@ function previewImport(input) {
     const required  = _importType === 'fleet' ? FLEET_REQUIRED_IMPORT : DRIVER_REQUIRED_IMPORT;
     const idKey     = _importType === 'fleet' ? 'plate' : 'driver_id';
 
-    // Map incoming headers to our field names (flexible matching)
+    // Map incoming headers to our field names (flexible, case/format-insensitive matching —
+    // handles both underscore-key base fields and space/uppercase custom column keys like
+    // "CUSTOM DATE OF REG EXPIRY 1783612186869")
+    const normalizeKey = s => String(s).toLowerCase().trim().replace(/\s+/g, '_');
     const mapped = rows.map(row => {
       const rec = {};
       cols.forEach(col => {
-        // Try exact match, then without underscores
-        const val = row[col] || row[col.replace(/_/g,' ')] || row[col.replace(/_/g,'')] || '';
+        const norm = normalizeKey(col);
+        const val = row[norm] ?? row[norm.replace(/_/g,'')] ?? row[col] ?? '';
         rec[col] = val;
       });
       return rec;
