@@ -1634,12 +1634,38 @@ async function loadData() {
     if (vData.ok) vehicles = vData.data;
     if (dData.ok) drivers  = dData.data;
     if (hData.ok) history  = hData.data;
+    autoDetectCustomCols('fleet',  vehicles, new Set(FLEET_COLS.map(c=>c.key)));
+    autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
     renderAll();
     renderFieldConfigPanel();
   } catch (e) {
     console.warn('API error, using local data:', e);
     renderAll();
   }
+}
+
+// Any key present in the actual synced records that isn't a known base field gets auto-registered
+// as a custom column — this is what makes a custom column visible to EVERY user, since it's derived
+// straight from the real data everyone receives, rather than from a separately-synced definition list
+// that could fall out of sync with however the backend actually names sheet columns.
+function autoDetectCustomCols(tracker, records, knownKeys) {
+  if (!records || !records.length) return;
+  const existing = getCustomCols(tracker);
+  const existingKeys = new Set(existing.map(c => c.key));
+  const found = new Set();
+  records.forEach(r => Object.keys(r).forEach(k => {
+    if (!knownKeys.has(k) && k !== 'id' && !existingKeys.has(k)) found.add(k);
+  }));
+  if (!found.size) return;
+  const newCols = [...found].map(k => {
+    // Derive a clean label from the raw header, e.g. "CUSTOM DATE OF REG EXPIRY 1783612186869" -> "Date Of Reg Expiry"
+    let label = String(k).replace(/^CUSTOM[\s_]+/i, '').replace(/[\s_]+\d{8,}$/, '').trim();
+    label = label.replace(/_/g, ' ').split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const vals = records.map(r => r[k]).filter(Boolean);
+    const type = vals.length && vals.every(v => looksLikeDate(v)) ? 'date' : 'text';
+    return { key: k, label: label || k, type };
+  });
+  saveCustomCols(tracker, [...existing, ...newCols]);
 }
 
 async function apiPost(body) {
