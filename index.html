@@ -579,6 +579,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <button class="btn btn-ghost btn-sm" id="fleet-unlock-btn" onclick="toggleFleetEdit()" style="display:none;">🔓 Unlock Editing</button>
         <button class="btn btn-primary btn-sm" onclick="openVehicleModal()">+ Add Vehicle</button>
         <button class="btn btn-ghost btn-sm" onclick="openImportModal('fleet')">⬆ Import CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="exportFleetColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFleetCSV()">⬇ Export CSV</button>
         <div class="col-toggle-wrap">
           <button class="btn btn-ghost btn-sm" onclick="toggleColMenu('fleet')" style="gap:5px;">⊞ Columns ▾</button>
@@ -645,6 +646,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="spacer"></div>
         <button class="btn btn-primary btn-sm" onclick="openDriverModal()">+ Add Driver</button>
         <button class="btn btn-ghost btn-sm" onclick="openImportModal('driver')">⬆ Import CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="exportDriversColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportDriverCSV()">⬇ Export CSV</button>
         <div class="col-toggle-wrap">
           <button class="btn btn-ghost btn-sm" onclick="toggleColMenu('driver')" style="gap:5px;">⊞ Columns ▾</button>
@@ -702,7 +704,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="stat-card" onclick="generateReport('driver-type')"><div class="sc-label">Drivers by Type</div><div class="sc-val" style="font-size:18px;">🏢</div><div class="sc-sub">Inhouse vs Outsource</div></div>
     </div>
     <div class="card">
-      <div class="card-head"><h3 id="reportTitle">Select a report above</h3><div class="spacer"></div><button class="btn btn-primary btn-sm" id="reportExportBtn" onclick="exportCurrentReport()" style="display:none;">⬇ Export CSV</button></div>
+      <div class="card-head"><h3 id="reportTitle">Select a report above</h3><div class="spacer"></div><button class="btn btn-primary btn-sm" id="reportExportColorBtn" onclick="exportCurrentReportColored()" style="display:none;">🎨 Export Colored Excel</button><button class="btn btn-ghost btn-sm" id="reportExportBtn" onclick="exportCurrentReport()" style="display:none;">⬇ Export CSV</button></div>
       <div class="tbl-wrap" id="reportTable"><div class="no-data">Select a report above to preview data.</div></div>
     </div>
   </div>
@@ -721,6 +723,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <h3>Fleet Permit Records</h3>
             <div class="spacer"></div>
             <input type="text" class="search-box" id="fleetPermitSearch" placeholder="Search plate, permit…" oninput="renderPermits()" style="min-width:160px;">
+            <button class="btn btn-primary btn-sm" onclick="exportPermitsColored('fleet')">🎨 Colored Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportPermitsCSV('fleet')">⬇ Export</button>
           </div>
           <div class="tbl-wrap">
@@ -753,6 +756,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <h3>Driver Permit Records</h3>
             <div class="spacer"></div>
             <input type="text" class="search-box" id="driverPermitSearch" placeholder="Search driver, permit…" oninput="renderPermits()" style="min-width:160px;">
+            <button class="btn btn-primary btn-sm" onclick="exportPermitsColored('driver')">🎨 Colored Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportPermitsCSV('driver')">⬇ Export</button>
           </div>
           <div class="tbl-wrap">
@@ -2300,9 +2304,12 @@ function getVisibleCols(tracker) {
   const stored = localStorage.getItem('agfsCols_' + tracker);
   const base   = tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS;
   const defaults = base.reduce((a, c) => { a[c.key] = c.locked || c.def; return a; }, {});
+  // Custom columns default to visible for everyone, so a column another user created shows up
+  // as soon as it syncs, without each person having to manually check it on.
+  getCustomCols(tracker).forEach(c => { defaults[c.key] = true; });
   if (!stored) return defaults;
   const parsed = JSON.parse(stored);
-  // Merge defaults for any new base cols not yet in stored
+  // Merge defaults for any new base/custom cols not yet in stored
   return { ...defaults, ...parsed };
 }
 function saveVisibleCols(tracker, cols) {
@@ -2329,12 +2336,14 @@ function getCustomCols(tracker) {
 }
 function saveCustomCols(tracker, cols) {
   localStorage.setItem('agfsCustomCols_' + tracker, JSON.stringify(cols));
+  syncFieldConfigToSheet(); // push so all users/devices see the new/removed custom column
 }
 function getRemovedBaseCols(tracker) {
   try { return JSON.parse(localStorage.getItem('agfsRemovedBaseCols_' + tracker) || '[]'); } catch(e){ return []; }
 }
 function saveRemovedBaseCols(tracker, keys) {
   localStorage.setItem('agfsRemovedBaseCols_' + tracker, JSON.stringify(keys));
+  syncFieldConfigToSheet(); // push so all users/devices see the removed/restored column
 }
 function getAllCols(tracker) {
   const removed = getRemovedBaseCols(tracker);
@@ -2942,6 +2951,61 @@ async function bulkDriverStatus(status) {
   renderAll();
 }
 
+// Generic colored Excel (HTML-table-as-.xls) exporter, reusable across Fleet/Driver/Permits/Reports.
+// cols: [{key,label}], data: array of records, dateKeys: optional Set of keys to force-format as dates.
+function exportColoredExcel(filename, cols, data, dateKeys) {
+  if (!data.length) { alert('No records to export.'); return; }
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const headHtml = cols.map(c =>
+    `<th style="background:#3d2563;color:#ffffff;padding:8px 10px;font-size:12px;text-align:left;border:1px solid #3d2563;font-family:Arial,sans-serif;">${esc(c.label)}</th>`
+  ).join('');
+  const rowsHtml = data.map(r => {
+    const bg = reportRowColor(r);
+    const cells = cols.map(c => {
+      const raw = r[c.key];
+      const v = (dateKeys && dateKeys.has(c.key)) ? fmtDisplayDate(raw||'') : smartDateFormat(raw||'');
+      return `<td style="border:1px solid #d1d5db;padding:6px 10px;font-size:12px;font-family:Arial,sans-serif;${bg?`background:${bg};`:''}">${esc(v)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  const html = `<html><head><meta charset="utf-8"></head><body>
+    <table style="border-collapse:collapse;">
+      <thead><tr>${headHtml}</tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p style="font-family:Arial,sans-serif;font-size:11px;color:#666;margin-top:10px;">
+      🔴 Red = Expired &nbsp; 🟠 Amber = Expiring within 30 days / needs attention &nbsp; 🟢 Green = Active
+    </p>
+  </body></html>`;
+  dl(filename + '.xls', html, 'application/vnd.ms-excel');
+}
+
+function exportFleetColored() {
+  const cols = getAllCols('fleet');
+  exportColoredExcel('AGFS_Fleet_' + fmtDate(), cols, getFilteredFleet());
+}
+function exportDriversColored() {
+  const cols = [
+    {key:'name',label:'Driver Name'}, {key:'driver_id',label:'Employee ID'}, {key:'contact',label:'Contact Number'},
+    {key:'driver_type',label:'Inhouse / Outsource'}, {key:'vehicle_plate',label:'Assigned Vehicle Plate'},
+    {key:'assign_date',label:'Assign Date'}, {key:'status',label:'Driver Status'}, {key:'location',label:'Location / Site'},
+    {key:'lic_no',label:'License Number'}, {key:'driver_class',label:'Driver Class'}, {key:'lic_expiry',label:'License Expiry'},
+    {key:'notes',label:'Notes'}, ...getCustomCols('driver').map(c=>({key:c.key,label:c.label})),
+  ].filter(c => !getRemovedBaseCols('driver').includes(c.key));
+  exportColoredExcel('AGFS_Drivers_' + fmtDate(), cols, getFilteredDrivers());
+}
+function exportPermitsColored(type) {
+  const cols = [
+    {key:'ref',label:'Plate / Driver'}, {key:'permitNo',label:'Permit No'}, {key:'permitName',label:'Permit Name'},
+    {key:'region',label:'Permitted Region'}, {key:'startDate',label:'Start Date'}, {key:'endDate',label:'End Date'},
+    {key:'permit_status',label:'Status'}, {key:'notes',label:'Notes'},
+  ];
+  const data = getPermits(type).flatMap(p => expandPermitRegions(p).map(r => ({
+    ref: p.ref, permitNo: p.permitNo, permitName: p.permitName, region: r.region,
+    startDate: r.startDate, endDate: r.endDate, permit_status: permitStatus(r.endDate).label, notes: p.notes,
+  })));
+  exportColoredExcel('AGFS_' + (type==='fleet'?'Fleet':'Driver') + '_Permits_' + fmtDate(), cols, data);
+}
 function exportSelectedDriversCSV() {
   const ids = getSelectedDriverIds();
   const data = ids.length ? drivers.filter(d => ids.includes(d.driver_id)) : getFilteredDrivers();
@@ -3824,6 +3888,14 @@ function getAllFieldConfigs() {
     fleet:  JSON.parse(localStorage.getItem('agfsFC_fleet')  || '{}'),
     driver: JSON.parse(localStorage.getItem('agfsFC_driver') || '{}'),
     permit: JSON.parse(localStorage.getItem('agfsFC_permit') || '{}'),
+    customCols: {
+      fleet:  getCustomCols('fleet'),
+      driver: getCustomCols('driver'),
+    },
+    removedBaseCols: {
+      fleet:  getRemovedBaseCols('fleet'),
+      driver: getRemovedBaseCols('driver'),
+    },
   };
 }
 
@@ -3843,7 +3915,19 @@ async function syncFieldConfigFromSheet() {
       ['fleet','driver','permit'].forEach(t => {
         if (j.data[t]) localStorage.setItem('agfsFC_' + t, JSON.stringify(j.data[t]));
       });
+      if (j.data.customCols) {
+        ['fleet','driver'].forEach(t => {
+          if (j.data.customCols[t]) localStorage.setItem('agfsCustomCols_' + t, JSON.stringify(j.data.customCols[t]));
+        });
+      }
+      if (j.data.removedBaseCols) {
+        ['fleet','driver'].forEach(t => {
+          if (j.data.removedBaseCols[t]) localStorage.setItem('agfsRemovedBaseCols_' + t, JSON.stringify(j.data.removedBaseCols[t]));
+        });
+      }
       applyFieldConfigs();
+      if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
+      if (typeof renderDrivers === 'function' && document.getElementById('page-drivers')?.classList.contains('active')) renderDrivers();
     }
   } catch(e) { console.warn('Field config sync failed:', e); }
 }
@@ -5077,6 +5161,7 @@ function generateReport(type) {
   currentReport = data; currentReportCols = cols; currentReportName = type;
   document.getElementById('reportTitle').textContent = `${title} (${data.length} records)`;
   document.getElementById('reportExportBtn').style.display = 'inline-flex';
+  document.getElementById('reportExportColorBtn').style.display = 'inline-flex';
   const wrap = document.getElementById('reportTable');
   if (!data.length) { wrap.innerHTML='<div class="no-data">No records for this report.</div>'; return; }
   const renderCell = (r, c) => {
@@ -5096,10 +5181,8 @@ function generateReport(type) {
   }</tbody></table>`;
 }
 
-function exportCurrentReport() {
-  if (!currentReport.length) { alert('No report data. Please select a report first.'); return; }
-  if (!currentReportCols.length) { alert('Report columns missing. Please re-select the report.'); return; }
-  const colMap = {
+function getReportColMap() {
+  return {
     plate:'Plate No', reg:'Plate Code', make:'Make/Model', category:'Category',
     own:'Own/Rental', owner:'Owner', end_user:'End User', end_user_id:'End User ID',
     designation:'Designation', phone:'Phone', region:'Region', job_code:'Job Code',
@@ -5113,6 +5196,25 @@ function exportCurrentReport() {
     ...Object.fromEntries(getCustomCols('fleet').map(c => [c.key, c.label])),
     ...Object.fromEntries(getCustomCols('driver').map(c => [c.key, c.label])),
   };
+}
+
+// Decides a whole-row highlight color based on whatever status/urgency signal the row carries
+function reportRowColor(row) {
+  const s = row.permit_status || row.expiry_status;
+  if (s === 'Expired' || s === 'Critical') return '#fadbd8';
+  if (typeof s === 'string' && (s.startsWith('Expires in') || s === 'Warning')) return '#fdebd0';
+  const d = (typeof row.daysLeft === 'number') ? row.daysLeft : (typeof row.days_left === 'number' ? row.days_left : null);
+  if (d !== null) { if (d < 0) return '#fadbd8'; if (d <= 30) return '#fdebd0'; }
+  if (row.status === 'Total Loss') return '#fadbd8';
+  if (row.status === 'Under Maintenance') return '#fdebd0';
+  if (row.status === 'Active' || row.status === 'Deployed') return '#d5f5e3';
+  return '';
+}
+
+function exportCurrentReport() {
+  if (!currentReport.length) { alert('No report data. Please select a report first.'); return; }
+  if (!currentReportCols.length) { alert('Report columns missing. Please re-select the report.'); return; }
+  const colMap = getReportColMap();
   const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
   const csv = [
     headers.join(','),
@@ -5122,6 +5224,38 @@ function exportCurrentReport() {
     }).join(','))
   ].join('\n');
   dl('AGFS_'+currentReportName+'_'+fmtDate()+'.csv', csv, 'text/csv');
+}
+
+// Colored Excel export — CSV can't carry color, so this builds an HTML table (Excel opens styled HTML
+// tables fine when given a .xls extension) with a whole-row background: red = expired, amber = expiring
+// soon / needs attention, green = active/healthy.
+function exportCurrentReportColored() {
+  if (!currentReport.length) { alert('No report data. Please select a report first.'); return; }
+  if (!currentReportCols.length) { alert('Report columns missing. Please re-select the report.'); return; }
+  const colMap  = getReportColMap();
+  const headers = currentReportCols.map(k => colMap[k] || k.replace(/_/g,' ').toUpperCase());
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const headHtml = headers.map(h =>
+    `<th style="background:#3d2563;color:#ffffff;padding:8px 10px;font-size:12px;text-align:left;border:1px solid #3d2563;font-family:Arial,sans-serif;">${esc(h)}</th>`
+  ).join('');
+  const rowsHtml = currentReport.map(r => {
+    const bg = reportRowColor(r);
+    const cells = currentReportCols.map(k => {
+      const v = smartDateFormat(r[k]||'');
+      return `<td style="border:1px solid #d1d5db;padding:6px 10px;font-size:12px;font-family:Arial,sans-serif;${bg?`background:${bg};`:''}">${esc(v)}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  const html = `<html><head><meta charset="utf-8"></head><body>
+    <table style="border-collapse:collapse;">
+      <thead><tr>${headHtml}</tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <p style="font-family:Arial,sans-serif;font-size:11px;color:#666;margin-top:10px;">
+      🔴 Red = Expired &nbsp; 🟠 Amber = Expiring within 30 days / needs attention &nbsp; 🟢 Green = Active
+    </p>
+  </body></html>`;
+  dl('AGFS_'+currentReportName+'_'+fmtDate()+'.xls', html, 'application/vnd.ms-excel');
 }
 
 function exportFleetCSV() {
