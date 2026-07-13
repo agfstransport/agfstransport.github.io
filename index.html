@@ -5066,9 +5066,11 @@ async function confirmImport() {
       if (!plate) return;
       const idx = vehicles.findIndex(v => String(v.plate).toUpperCase() === plate.toUpperCase());
       if (idx >= 0) {
-        // Existing record: only update fields that were in the CSV (preserve everything else)
+        // Existing record: only update fields that have a non-blank value in the CSV.
+        // A blank cell means "no change" (preserves existing data) — only a column left out
+        // of the file entirely, OR a column with an actual blank value, both count as "skip".
         const update = {};
-        csvCols.forEach(col => { if (col !== 'plate' && rec[col] !== undefined) update[col] = rec[col]; });
+        csvCols.forEach(col => { if (col !== 'plate' && rec[col] !== undefined && String(rec[col]).trim() !== '') update[col] = rec[col]; });
         vehicles[idx] = { ...vehicles[idx], ...update };
         updated++;
       } else {
@@ -5092,9 +5094,9 @@ async function confirmImport() {
       if (!dId) return;
       const idx = drivers.findIndex(d => d.driver_id && String(d.driver_id).toUpperCase() === dId.toUpperCase());
       if (idx >= 0) {
-        // Existing record: only update fields that were in the CSV (preserve everything else)
+        // Existing record: only update fields that have a non-blank value in the CSV (blank = no change)
         const update = {};
-        dCsvCols.forEach(col => { if (col !== 'driver_id' && rec[col] !== undefined) update[col] = rec[col]; });
+        dCsvCols.forEach(col => { if (col !== 'driver_id' && rec[col] !== undefined && String(rec[col]).trim() !== '') update[col] = rec[col]; });
         drivers[idx] = { ...drivers[idx], ...update };
         updated++;
       } else {
