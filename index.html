@@ -436,6 +436,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="nav-tab" data-tab="drivers" onclick="switchTab('drivers')"><span class="nav-icon">👤</span> Driver Master <span class="nav-cnt" id="nc-drivers">0</span></div>
     <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab" data-tab="permits" onclick="switchTab('permits')"><span class="nav-icon">📜</span> Permits <span class="nav-cnt" id="nc-permits">0</span></div>
+    <div class="nav-tab" data-tab="dispatch" onclick="switchTab('dispatch')"><span class="nav-icon">🚚</span> Dispatcher (DVMS)</div>
     <div class="nav-tab admin-only" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
   </div>
 
@@ -780,6 +781,11 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- DISPATCHER (DVMS) — embedded, same site, same login session -->
+  <div class="page" id="page-dispatch" style="padding:0;max-width:none;">
+    <iframe id="dispatchFrame" data-src="./dispatcher.html" style="width:100%;height:calc(100vh - 130px);border:0;display:block;background:#f1f5f9;"></iframe>
   </div>
 
   <!-- ACCESS CONTROL -->
@@ -5403,6 +5409,10 @@ function switchTab(tab) {
   if (tab === 'permits') { renderPermits(); }
   if (tab === 'fleet')   { renderFleet(); }
   if (tab === 'drivers') { renderDrivers(); }
+  if (tab === 'dispatch') {
+    const f = document.getElementById('dispatchFrame');
+    if (f && !f.src) f.src = f.dataset.src;
+  }
 }
 
 // ═══════════════════════════════════════════
