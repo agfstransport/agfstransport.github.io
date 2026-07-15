@@ -2463,6 +2463,7 @@ function colDrop(e, tracker) {
   order.splice(fromIdx, 1);
   order.splice(toIdx, 0, _dragSrcKey);
   saveColOrder(tracker, order);
+  syncFieldConfigToSheet();
   _dragSrcKey = null;
   // Rebuild menu
   const drop = document.getElementById(tracker + 'ColDrop');
@@ -2473,6 +2474,7 @@ function colDrop(e, tracker) {
 }
 function resetColOrder(tracker) {
   localStorage.removeItem('agfsColOrder_' + tracker);
+  syncFieldConfigToSheet();
   const drop = document.getElementById(tracker + 'ColDrop');
   buildColMenu(tracker, drop);
   if (tracker === 'fleet') renderFleet();
@@ -2483,6 +2485,7 @@ function toggleCol(tracker, key, checked) {
   const vis = getVisibleCols(tracker);
   vis[key] = checked;
   saveVisibleCols(tracker, vis);
+  syncFieldConfigToSheet();
   if (tracker === 'fleet') renderFleet();
   else renderDrivers();
 }
@@ -3928,6 +3931,14 @@ function getAllFieldConfigs() {
       fleet:  getRemovedBaseCols('fleet'),
       driver: getRemovedBaseCols('driver'),
     },
+    visibleCols: {
+      fleet:  getVisibleCols('fleet'),
+      driver: getVisibleCols('driver'),
+    },
+    colOrder: {
+      fleet:  getColOrder('fleet'),
+      driver: getColOrder('driver'),
+    },
   };
 }
 
@@ -3955,6 +3966,16 @@ async function syncFieldConfigFromSheet() {
       if (j.data.removedBaseCols) {
         ['fleet','driver'].forEach(t => {
           if (j.data.removedBaseCols[t]) localStorage.setItem('agfsRemovedBaseCols_' + t, JSON.stringify(j.data.removedBaseCols[t]));
+        });
+      }
+      if (j.data.visibleCols) {
+        ['fleet','driver'].forEach(t => {
+          if (j.data.visibleCols[t]) localStorage.setItem('agfsCols_' + t, JSON.stringify(j.data.visibleCols[t]));
+        });
+      }
+      if (j.data.colOrder) {
+        ['fleet','driver'].forEach(t => {
+          if (j.data.colOrder[t]) localStorage.setItem('agfsColOrder_' + t, JSON.stringify(j.data.colOrder[t]));
         });
       }
       applyFieldConfigs();
