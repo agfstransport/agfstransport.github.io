@@ -219,7 +219,7 @@ tr:hover td{background:#fafbfc;}
   <div class="card" id="addStopCard" style="display:none;">
 
     <h2>2. Add stop <small>— search the geofence master or type a new location, mark it Start / End if it opens or closes a trip</small></h2>
-    <div class="form-grid stop" style="grid-template-columns:1.1fr auto 0.8fr 0.8fr 0.9fr 0.7fr 1fr 1fr auto;">
+    <div class="form-grid stop" style="grid-template-columns:1.1fr auto 0.8fr 0.8fr 0.9fr 0.7fr 1fr 1fr auto auto;">
       <div class="field">
         <label>Pick/Drop Point (search or type new)</label>
         <input id="fGeofence" placeholder="Search 1,400 points or type a new location..." autocomplete="off">
@@ -258,6 +258,9 @@ tr:hover td{background:#fafbfc;}
       </div>
       <div class="field">
         <button class="btn btn-pink" onclick="addStop()" style="width:100%;">+ Add stop</button>
+      </div>
+      <div class="field">
+        <button class="btn" onclick="clearStopForm()" style="width:100%;">Clear</button>
       </div>
     </div>
   </div>
@@ -738,6 +741,17 @@ function selectGeofence(name){ geoInput().value = name; geoDropdown().classList.
 // ═══════════════════════════════════════════
 // ADD STOP
 // ═══════════════════════════════════════════
+function clearStopForm(){
+  geoInput().value = '';
+  document.getElementById('fArrival').value = '';
+  document.getElementById('fDeparture').value = '';
+  document.getElementById('fPax').value = '';
+  document.getElementById('fGeo').value = '';
+  document.getElementById('fNotes').value = '';
+  document.getElementById('fMarker').selectedIndex = 0;
+  geoDropdown().classList.remove('show');
+}
+
 async function addStop(){
   if (!active.vehiclePlate || !active.driver1Id){ toast('Set a vehicle + at least one driver first'); return; }
   if (isVehicleFinalized(active.vehiclePlate)){ toast('DVMS Completed for this vehicle today — Reopen to add more stops'); return; }
