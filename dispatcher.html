@@ -218,11 +218,11 @@ tr:hover td{background:#fafbfc;}
 
   <div class="card" id="addStopCard" style="display:none;">
 
-    <h2>2. Add stop <small>— search the geofence master, mark it Start / End if it opens or closes a trip</small></h2>
-    <div class="form-grid stop" style="grid-template-columns:1.1fr auto 0.8fr 0.8fr 0.9fr 0.7fr 1fr auto;">
+    <h2>2. Add stop <small>— search the geofence master or type a new location, mark it Start / End if it opens or closes a trip</small></h2>
+    <div class="form-grid stop" style="grid-template-columns:1.1fr auto 0.8fr 0.8fr 0.9fr 0.7fr 1fr 1fr auto;">
       <div class="field">
-        <label>Pick/Drop Point (search geofence master)</label>
-        <input id="fGeofence" placeholder="Type to search 1,400 pick/drop points..." autocomplete="off">
+        <label>Pick/Drop Point (search or type new)</label>
+        <input id="fGeofence" placeholder="Search 1,400 points or type a new location..." autocomplete="off">
         <div class="combo-list" id="geofenceDropdown"></div>
       </div>
       <div class="field">
@@ -250,6 +250,10 @@ tr:hover td{background:#fafbfc;}
         <input type="number" id="fPax" min="0" placeholder="0">
       </div>
       <div class="field">
+        <label>Geo Coordinates (optional)</label>
+        <input id="fGeo" placeholder="e.g. 25.276987, 55.296249">
+      </div>
+      <div class="field">
         <label>Remarks (optional)</label>
         <input id="fNotes" placeholder="e.g. traffic delay, gate closed...">
       </div>
@@ -264,7 +268,7 @@ tr:hover td{background:#fafbfc;}
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Remarks</th><th></th></tr>
+          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
         </thead>
         <tbody id="liveLogBody"></tbody>
       </table>
@@ -311,7 +315,7 @@ tr:hover td{background:#fafbfc;}
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Remarks</th><th></th></tr>
+          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
         </thead>
         <tbody id="dvmsBody"></tbody>
       </table>
@@ -382,7 +386,7 @@ const DEMO_GEOFENCES = [
   'Sharjah Airport Free Zone','Masdar City HQ'
 ];
 let DEMO_ENTRIES = [
-  {id:'e1', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:00', departure_time:'08:15', geofence_name:'AL BARSHA ZAYED COMPLEX', marker:'start', pax:'12', verified:''},
+  {id:'e1', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:00', departure_time:'08:15', geofence_name:'AL BARSHA ZAYED COMPLEX', marker:'start', pax:'12', geo:'25.1124, 55.2003', verified:''},
   {id:'e2', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:20', departure_time:'08:35', geofence_name:'Al Barsha Mall', marker:'stop', notes:'Gate delay, waited 5 min', verified:''},
   {id:'e3', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:45', departure_time:'09:00', geofence_name:'Al Quoz Industrial Area 3', marker:'end', pax:'11', notes:'1 passenger dropped earlier at Al Barsha Mall', verified:''},
   {id:'e4', date: currentDate, driver_id:'EMP-006', driver_name:'James Osei', shift:'2', vehicle_plate:'DXB-11234', arrival_time:'16:10', departure_time:'', geofence_name:'Academy city KHDA', marker:'start', pax:'9', verified:''},
@@ -744,11 +748,11 @@ async function addStop(){
   const marker = document.getElementById('fMarker').value;
   const shift = document.getElementById('fShift').value;
   const pax = document.getElementById('fPax').value.trim();
+  const geo = document.getElementById('fGeo').value.trim();
   const notes = document.getElementById('fNotes').value.trim();
 
   if (!shift){ toast('Select which shift/driver this stop belongs to'); return; }
   if (!geofence){ toast('Select a pick/drop point'); return; }
-  if (!geofences.includes(geofence)){ toast('Pick/Drop point not found in Geofence Master — pick from the search list'); return; }
   if (!arrival){ toast('Arrival time is required'); return; }
   if (!departure){ toast('Departure time is required'); return; }
   if (departure <= arrival){ toast('Departure must be after arrival'); return; }
@@ -760,20 +764,20 @@ async function addStop(){
     id: isDemo ? 'e_' + Date.now() : undefined,
     date: currentDate, driver_id: driverId, driver_name: driverName, shift,
     vehicle_plate: active.vehiclePlate, arrival_time: arrival, departure_time: departure,
-    geofence_name: geofence, marker, pax, notes, verified:'', created_by: currentUser ? currentUser.name : ''
+    geofence_name: geofence, marker, pax, geo, notes, verified:'', created_by: currentUser ? currentUser.name : ''
   };
 
   if (isDemo){
     DEMO_ENTRIES.push(record);
     toast('Stop added (demo)');
-    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fNotes').value='';
+    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
     loadAll();
     return;
   }
   const res = await apiPost(GAS_URL, { action:'save_dispatch', record });
   if (res && res.ok){
     toast('Stop added');
-    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fNotes').value='';
+    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
     loadAll();
   } else toast('Save failed: ' + (res?.error || 'unknown error'));
 }
@@ -872,7 +876,7 @@ function renderStopTable(plate, bodyId, emptyId){
       return `<tr>
         <td class="muted">${i+1}</td>
         <td>${esc(e.vehicle_plate)}</td>
-        <td><input id="editGeo" list="geofenceListGlobal" value="${esc(e.geofence_name)}" style="width:100%;"></td>
+        <td><input id="editGeoPoint" list="geofenceListGlobal" value="${esc(e.geofence_name)}" style="width:100%;"></td>
         <td><input type="time" id="editArrival" value="${esc(e.arrival_time)}" style="width:90px;"></td>
         <td><input type="time" id="editDeparture" value="${esc(e.departure_time)}" style="width:90px;"></td>
         <td>
@@ -883,6 +887,7 @@ function renderStopTable(plate, bodyId, emptyId){
           </select>
         </td>
         <td><input type="number" min="0" id="editPax" value="${esc(e.pax)}" style="width:65px;"></td>
+        <td><input id="editGeoCoords" value="${esc(e.geo)}" placeholder="lat, long" style="width:130px;"></td>
         <td><input id="editNotes" value="${esc(e.notes)}" style="width:100%;"></td>
         <td style="white-space:nowrap;">
           <button class="btn btn-sm btn-pink" onclick="saveEdit('${e.id}')">Save</button>
@@ -893,7 +898,7 @@ function renderStopTable(plate, bodyId, emptyId){
     if (e.id === transferringEntryId){
       return `<tr>
         <td class="muted">${i+1}</td>
-        <td colspan="7">
+        <td colspan="8">
           Move this stop (<strong>${esc(e.geofence_name)}</strong> at ${esc(e.arrival_time)}) from <strong>${esc(e.vehicle_plate)}</strong> to:
           <div style="position:relative;display:inline-block;width:240px;margin-left:8px;vertical-align:middle;">
             <input id="transferVehicleSearch" placeholder="Search vehicle..." autocomplete="off" style="width:100%;" oninput="filterTransferVehicles(this,'${e.vehicle_plate.replace(/'/g,"\\'")}')">
@@ -914,6 +919,7 @@ function renderStopTable(plate, bodyId, emptyId){
       <td class="muted">${esc(e.departure_time)||'—'}</td>
       <td>${markerBadge(e.marker)}</td>
       <td>${esc(e.pax)||'—'}</td>
+      <td class="muted">${esc(e.geo)||'—'}</td>
       <td class="muted">${esc(e.notes)||'—'}</td>
       <td style="white-space:nowrap;">
         ${e.marker==='logoff' ? '' : `<button class="btn btn-sm btn-blue" onclick="startTransfer('${e.id}')">Transfer</button>`}
@@ -975,27 +981,27 @@ async function confirmTransfer(id){
 async function saveEdit(id){
   const arrival = document.getElementById('editArrival').value;
   const departure = document.getElementById('editDeparture').value;
-  const geofence = document.getElementById('editGeo').value.trim();
+  const geofence = document.getElementById('editGeoPoint').value.trim();
   const marker = document.getElementById('editMarker').value;
   const pax = document.getElementById('editPax').value.trim();
+  const geo = document.getElementById('editGeoCoords').value.trim();
   const notes = document.getElementById('editNotes').value.trim();
 
   if (!geofence){ toast('Pick/Drop point can\'t be empty'); return; }
-  if (!geofences.includes(geofence)){ toast('Pick/Drop point not found in Geofence Master'); return; }
   if (!arrival){ toast('Arrival time is required'); return; }
   if (!departure){ toast('Departure time is required'); return; }
   if (departure <= arrival){ toast('Departure must be after arrival'); return; }
 
   if (isDemo){
     const e = DEMO_ENTRIES.find(r=>r.id===id);
-    if (e){ e.arrival_time = arrival; e.departure_time = departure; e.geofence_name = geofence; e.marker = marker; e.pax = pax; e.notes = notes; }
+    if (e){ e.arrival_time = arrival; e.departure_time = departure; e.geofence_name = geofence; e.marker = marker; e.pax = pax; e.geo = geo; e.notes = notes; }
     editingEntryId = '';
     toast('Stop updated');
     loadAll();
     return;
   }
   const existing = entries.find(e=>e.id===id);
-  const record = { ...existing, arrival_time: arrival, departure_time: departure, geofence_name: geofence, marker, pax, notes };
+  const record = { ...existing, arrival_time: arrival, departure_time: departure, geofence_name: geofence, marker, pax, geo, notes };
   const res = await apiPost(GAS_URL, { action:'save_dispatch', record });
   editingEntryId = '';
   if (res && res.ok){ toast('Stop updated'); loadAll(); } else toast('Update failed');
@@ -1028,10 +1034,10 @@ function getVehicleCategory(plate){
 // EXPORT — CSV for all vehicles, or a single vehicle's DVMS
 // ═══════════════════════════════════════════
 function downloadXlsx(rows, filename){
-  const headers = ['Date','Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Remarks'];
+  const headers = ['Date','Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks'];
   const data = rows.map(e => [
     e.date, e.vehicle_plate, getVehicleCategory(e.vehicle_plate), e.driver_name, e.shift==='2'?'2':'1',
-    e.geofence_name, e.arrival_time, e.departure_time, markerLabel(e.marker), e.pax, e.notes
+    e.geofence_name, e.arrival_time, e.departure_time, markerLabel(e.marker), e.pax, e.geo, e.notes
   ]);
   const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   ws['!cols'] = headers.map(()=>({wch:16}));
@@ -1067,10 +1073,10 @@ function buildDvmsPdf(rows, title){
   doc.setTextColor(120);
   doc.text(`Generated ${new Date().toLocaleString('en-AE')}`, 14, 21);
   doc.autoTable({
-    head: [['Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Remarks']],
+    head: [['Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks']],
     body: rows.map(e => [
       e.vehicle_plate, getVehicleCategory(e.vehicle_plate), e.driver_name, e.shift==='2'?'2':'1',
-      e.geofence_name, e.arrival_time, e.departure_time||'—', markerLabel(e.marker), e.pax||'—', e.notes||'—'
+      e.geofence_name, e.arrival_time, e.departure_time||'—', markerLabel(e.marker), e.pax||'—', e.geo||'—', e.notes||'—'
     ]),
     startY: 26,
     styles: { fontSize: 8 },
@@ -1246,7 +1252,7 @@ function closeBulkUpload(){
 }
 
 function downloadDvmsTemplate(){
-  const headers = ['Date','Vehicle','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Remarks'];
+  const headers = ['Date','Vehicle','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks'];
   const csv = headers.join(',') + '\n';
   const blob = new Blob([csv], { type:'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -1278,6 +1284,7 @@ async function bulkUploadDvms(){
     departure: detectCol(headers, ['departure']),
     marker: detectCol(headers, ['marker']),
     pax: detectCol(headers, ['pax','passenger']),
+    coords: detectCol(headers, ['coordinate','geo coord','lat','gps']),
     notes: detectCol(headers, ['remark','note'])
   };
   if (col.vehicle===-1 || col.geo===-1 || col.arrival===-1){
@@ -1285,7 +1292,6 @@ async function bulkUploadDvms(){
     return;
   }
 
-  const geoSet = new Set(geofences.map(g=>g.trim()));
   const driverByName = {};
   drivers.forEach(d=>{ driverByName[d.name.trim().toLowerCase()] = d; });
 
@@ -1304,11 +1310,12 @@ async function bulkUploadDvms(){
     const markerRaw = (col.marker!==-1 ? String(r[col.marker]||'') : '').toLowerCase();
     const marker = markerRaw.includes('start') ? 'start' : markerRaw.includes('end') ? 'end' : 'stop';
     const pax = col.pax!==-1 ? String(r[col.pax]||'').trim() : '';
+    const geoCoords = col.coords!==-1 ? String(r[col.coords]||'').trim() : '';
     const notes = col.notes!==-1 ? String(r[col.notes]||'').trim() : '';
     const driverNameRaw = col.driver!==-1 ? String(r[col.driver]||'').trim() : '';
     const driverMatch = driverByName[driverNameRaw.toLowerCase()];
 
-    if (!geofence || !geoSet.has(geofence)){ skipped.push({row:i+2, reason:'pick/drop point not in Geofence Master', value:geofence}); return; }
+    if (!geofence){ skipped.push({row:i+2, reason:'missing pick/drop point'}); return; }
     if (!arrival){ skipped.push({row:i+2, reason:'missing arrival time'}); return; }
     if (!driverMatch){ skipped.push({row:i+2, reason:'driver name not found', value:driverNameRaw}); return; }
     if (isVehicleFinalized(vehiclePlate)){ skipped.push({row:i+2, reason:'vehicle already DVMS Completed', value:vehiclePlate}); return; }
@@ -1317,7 +1324,7 @@ async function bulkUploadDvms(){
       id: isDemo ? 'e_' + Date.now() + '_' + i : undefined,
       date, driver_id: driverMatch.driver_id, driver_name: driverMatch.name, shift,
       vehicle_plate: vehiclePlate, arrival_time: arrival, departure_time: departure,
-      geofence_name: geofence, marker, pax, notes, verified:''
+      geofence_name: geofence, marker, pax, geo: geoCoords, notes, verified:''
     });
   });
 
