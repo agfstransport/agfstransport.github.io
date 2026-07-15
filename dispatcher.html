@@ -167,6 +167,24 @@ tr:hover td{background:#fafbfc;}
   </div>
 </div>
 
+<div class="modal-overlay" id="changeVehicleModal">
+  <div class="modal-box" style="width:480px;">
+    <div class="modal-hd">
+      <h3>Change vehicle</h3>
+      <button class="btn btn-sm" onclick="closeChangeVehicle()">✕ Close</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-bottom:14px;">
+      Same drivers, new vehicle. Stops already logged keep their original vehicle; new stops you add will be logged under whichever vehicle is set below.
+    </p>
+    <div class="field" style="margin-bottom:16px;">
+      <label>Vehicle</label>
+      <input id="cvVehicleSearch" placeholder="Search plate number..." autocomplete="off">
+      <div class="combo-list" id="cvVehicleDropdown"></div>
+    </div>
+    <button class="btn btn-pink" onclick="saveChangeVehicle()">Save</button>
+  </div>
+</div>
+
 <main>
 
   <div class="kpis">
@@ -213,7 +231,7 @@ tr:hover td{background:#fafbfc;}
     <button class="btn btn-sm" onclick="openDVMS(active.vehiclePlate)">Click for DVMS</button>
     <button class="btn btn-sm" id="logoffBtn" onclick="toggleLogoff()">Log off</button>
     <button class="btn btn-sm" onclick="openChangeDrivers()">Change drivers</button>
-    <button class="btn btn-sm" onclick="clearActive()">Change vehicle</button>
+    <button class="btn btn-sm" onclick="openChangeVehicle()">Change vehicle</button>
   </div>
 
   <div class="card" id="addStopCard" style="display:none;">
@@ -643,6 +661,27 @@ function saveChangeDrivers(){
   active.driver2Id = cdSelDriver2 ? cdSelDriver2.driver_id : ''; active.driver2Name = cdSelDriver2 ? cdSelDriver2.name : '';
   closeChangeDrivers();
   toast('Drivers updated — same vehicle, same DVMS route');
+  renderAll();
+}
+
+let cvSelVehicle = null;
+
+function openChangeVehicle(){
+  if (!active.vehiclePlate){ toast('No active DVMS session'); return; }
+  cvSelVehicle = vehicles.find(v=>v.plate===active.vehiclePlate) || { plate: active.vehiclePlate, make:'', category:'' };
+  document.getElementById('cvVehicleSearch').value = vehicleLabel(cvSelVehicle);
+  document.getElementById('changeVehicleModal').classList.add('show');
+}
+function closeChangeVehicle(){
+  document.getElementById('changeVehicleModal').classList.remove('show');
+}
+function saveChangeVehicle(){
+  if (!cvSelVehicle){ toast('Search and pick a vehicle'); return; }
+  if (cvSelVehicle.plate === active.vehiclePlate){ closeChangeVehicle(); return; }
+  if (isVehicleFinalized(cvSelVehicle.plate)){ toast(`${cvSelVehicle.plate} is already DVMS Completed — reopen it first`); return; }
+  active.vehiclePlate = cvSelVehicle.plate;
+  closeChangeVehicle();
+  toast('Vehicle changed — same drivers, new vehicle');
   renderAll();
 }
 
@@ -1374,6 +1413,8 @@ document.getElementById('datePicker').addEventListener('change', e=>{ currentDat
 initCombobox();
 attachSearchCombobox('fVehicleSearch', 'fVehicleDropdown',
   ()=>vehicles.filter(v=>v.status==='Active'||v.status==='Deployed'), vehicleLabel, v=>{ selVehicle = v; });
+attachSearchCombobox('cvVehicleSearch', 'cvVehicleDropdown',
+  ()=>vehicles.filter(v=>v.status==='Active'||v.status==='Deployed'), vehicleLabel, v=>{ cvSelVehicle = v; });
 attachSearchCombobox('fDriver1Search', 'fDriver1Dropdown',
   ()=>drivers.filter(d=>d.status==='Active'), driverLabel, d=>{ selDriver1 = d; });
 attachSearchCombobox('fDriver2Search', 'fDriver2Dropdown',
