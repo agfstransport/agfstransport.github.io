@@ -643,6 +643,26 @@ function clearActive(){
   renderAll();
 }
 
+// Reactivates a vehicle from the Vehicle log row as the current DVMS session,
+// pre-filling Driver 1 / Driver 2 from whatever's already been logged for it,
+// so you can keep adding or editing stops without redoing setup from scratch.
+function editVehicleSession(plate){
+  const rows = entries.filter(e=>e.vehicle_plate===plate && e.marker!=='logoff');
+  const d1Entry = rows.find(e=>e.shift!=='2');
+  const d2Entry = rows.find(e=>e.shift==='2');
+
+  active = {
+    vehiclePlate: plate,
+    driver1Id: d1Entry ? d1Entry.driver_id : '',
+    driver1Name: d1Entry ? d1Entry.driver_name : '',
+    driver2Id: d2Entry ? d2Entry.driver_id : '',
+    driver2Name: d2Entry ? d2Entry.driver_name : ''
+  };
+  toast(`Editing ${plate} — pick up where you left off`);
+  renderAll();
+  document.getElementById('activeBar')?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
 function openChangeDrivers(){
   if (!active.vehiclePlate){ toast('No active DVMS session'); return; }
   cdSelDriver1 = drivers.find(d=>d.driver_id===active.driver1Id) || (active.driver1Id ? {driver_id:active.driver1Id, name:active.driver1Name} : null);
@@ -1192,6 +1212,7 @@ function renderSummary(){
       <td><span class="badge ${s.finalized?'badge-end':'badge-start'}">${s.finalized?'DVMS Completed':'DVMS Pending'}</span></td>
       <td style="white-space:nowrap;">
         <button class="btn btn-sm btn-blue" onclick="openDVMS('${p.replace(/'/g,"\\'")}')">Click for DVMS</button>
+        <button class="btn btn-sm" onclick="editVehicleSession('${p.replace(/'/g,"\\'")}')">Edit</button>
         <button class="btn btn-sm" onclick="exportVehicle('${p.replace(/'/g,"\\'")}')">XLSX</button>
         <button class="btn btn-sm" onclick="exportVehiclePdf('${p.replace(/'/g,"\\'")}')">PDF</button>
         <button class="btn btn-sm btn-danger" id="delBtn_${p.replace(/[^A-Za-z0-9]/g,'_')}" onclick="deleteVehicleLog('${p.replace(/'/g,"\\'")}')">Delete</button>
