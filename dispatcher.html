@@ -258,6 +258,7 @@ tr:hover td{background:#fafbfc;}
       <div class="field">
         <label>Mark as</label>
         <select id="fMarker">
+          <option value="stop">Stop (waypoint)</option>
           <option value="start">Trip start (from Camp)</option>
           <option value="end">Trip End (at Camp)</option>
         </select>
@@ -933,7 +934,7 @@ function renderStopTable(plate, bodyId, emptyId){
         <td><input type="time" id="editDeparture" value="${esc(e.departure_time)}" style="width:90px;"></td>
         <td>
           <select id="editMarker" style="width:100%;">
-            ${e.marker==='stop' ? `<option value="stop" selected>Stop (legacy)</option>` : ''}
+            <option value="stop" ${e.marker==='stop'?'selected':''}>Stop (waypoint)</option>
             <option value="start" ${e.marker==='start'?'selected':''}>Trip start (from Camp)</option>
             <option value="end" ${e.marker==='end'?'selected':''}>Trip End (at Camp)</option>
           </select>
