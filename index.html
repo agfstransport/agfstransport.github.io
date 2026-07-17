@@ -3943,9 +3943,15 @@ function getAllFieldConfigs() {
 }
 
 // Push field configs to Sheet so all users/devices get the same dropdowns
-function syncFieldConfigToSheet() {
+async function syncFieldConfigToSheet() {
   if (!GAS_URL) return;
-  apiPost({ action: 'save_field_configs', configs: getAllFieldConfigs() });
+  const configs = getAllFieldConfigs();
+  let res = await apiPost({ action: 'save_field_configs', configs });
+  if (!res || !res.ok) {
+    // one retry — Apps Script Web Apps occasionally drop a request under load
+    res = await apiPost({ action: 'save_field_configs', configs });
+  }
+  if (!res || !res.ok) console.warn('Field config save failed after retry — will resync from local on next load.');
 }
 
 // Pull field configs from Sheet on login/sync
@@ -3970,12 +3976,22 @@ async function syncFieldConfigFromSheet() {
       }
       if (j.data.visibleCols) {
         ['fleet','driver'].forEach(t => {
-          if (j.data.visibleCols[t]) localStorage.setItem('agfsCols_' + t, JSON.stringify(j.data.visibleCols[t]));
+          if (j.data.visibleCols[t]) {
+            // Local wins: only fill in columns this device hasn't decided on yet.
+            // Prevents a failed/slow save from being silently reverted on next refresh.
+            let local = {};
+            try { local = JSON.parse(localStorage.getItem('agfsCols_' + t) || '{}'); } catch(e){}
+            localStorage.setItem('agfsCols_' + t, JSON.stringify({ ...j.data.visibleCols[t], ...local }));
+          }
         });
       }
       if (j.data.colOrder) {
         ['fleet','driver'].forEach(t => {
-          if (j.data.colOrder[t]) localStorage.setItem('agfsColOrder_' + t, JSON.stringify(j.data.colOrder[t]));
+          if (j.data.colOrder[t]) {
+            // Only adopt server's order if this device has never set its own.
+            const localOrder = localStorage.getItem('agfsColOrder_' + t);
+            if (!localOrder) localStorage.setItem('agfsColOrder_' + t, JSON.stringify(j.data.colOrder[t]));
+          }
         });
       }
       applyFieldConfigs();
