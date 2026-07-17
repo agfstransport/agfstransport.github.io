@@ -237,7 +237,7 @@ tr:hover td{background:#fafbfc;}
   <div class="card" id="addStopCard" style="display:none;">
 
     <h2>2. Add stop <small>— search the geofence master or type a new location, mark it Start / End if it opens or closes a trip</small></h2>
-    <div class="form-grid stop" style="grid-template-columns:1.1fr auto 0.8fr 0.8fr 0.9fr 0.7fr 1fr 1fr auto auto;">
+    <div class="form-grid stop" style="grid-template-columns:1fr auto 0.7fr 0.7fr 0.85fr 0.55fr 0.55fr 0.9fr 0.9fr auto auto;">
       <div class="field">
         <label>Pick/Drop Point (search or type new)</label>
         <input id="fGeofence" placeholder="Search 1,400 points or type a new location..." autocomplete="off">
@@ -264,8 +264,12 @@ tr:hover td{background:#fafbfc;}
         </select>
       </div>
       <div class="field">
-        <label>Passengers</label>
-        <input type="number" id="fPax" min="0" placeholder="0">
+        <label>Pick Pax</label>
+        <input type="number" id="fPickPax" min="0" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Drop Pax</label>
+        <input type="number" id="fDropPax" min="0" placeholder="0">
       </div>
       <div class="field">
         <label>Geo Coordinates (optional)</label>
@@ -289,7 +293,7 @@ tr:hover td{background:#fafbfc;}
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
+          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pick Pax</th><th>Drop Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
         </thead>
         <tbody id="liveLogBody"></tbody>
       </table>
@@ -314,7 +318,7 @@ tr:hover td{background:#fafbfc;}
         </thead>
         <tbody id="summaryBody"></tbody>
       </table>
-      <div class="empty" id="summaryEmpty" style="display:none;">No vehicles active yet for this date.</div>
+      <div class="empty" id="summaryEmpty" style="display:none;">No vehicles logged yet.</div>
     </div>
   </div>
 
@@ -336,7 +340,7 @@ tr:hover td{background:#fafbfc;}
     <div style="overflow-x:auto;">
       <table>
         <thead>
-          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
+          <tr><th>#</th><th>Vehicle</th><th>Pick/Drop Point</th><th>Arrival</th><th>Departure</th><th>Marker</th><th>Pick Pax</th><th>Drop Pax</th><th>Geo Coordinates</th><th>Remarks</th><th></th></tr>
         </thead>
         <tbody id="dvmsBody"></tbody>
       </table>
@@ -407,12 +411,12 @@ const DEMO_GEOFENCES = [
   'Sharjah Airport Free Zone','Masdar City HQ'
 ];
 let DEMO_ENTRIES = [
-  {id:'e1', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:00', departure_time:'08:15', geofence_name:'AL BARSHA ZAYED COMPLEX', marker:'start', pax:'12', geo:'25.1124, 55.2003', verified:''},
+  {id:'e1', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:00', departure_time:'08:15', geofence_name:'AL BARSHA ZAYED COMPLEX', marker:'start', pick_pax:'12', drop_pax:'', geo:'25.1124, 55.2003', verified:''},
   {id:'e2', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:20', departure_time:'08:35', geofence_name:'Al Barsha Mall', marker:'stop', notes:'Gate delay, waited 5 min', verified:''},
-  {id:'e3', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:45', departure_time:'09:00', geofence_name:'Al Quoz Industrial Area 3', marker:'end', pax:'11', notes:'1 passenger dropped earlier at Al Barsha Mall', verified:''},
-  {id:'e4', date: currentDate, driver_id:'EMP-006', driver_name:'James Osei', shift:'2', vehicle_plate:'DXB-11234', arrival_time:'16:10', departure_time:'', geofence_name:'Academy city KHDA', marker:'start', pax:'9', verified:''},
-  {id:'e5', date: currentDate, driver_id:'EMP-003', driver_name:'Mohammed Khalid', shift:'1', vehicle_plate:'AUH-33456', arrival_time:'09:30', departure_time:'09:40', geofence_name:'ADCB - Ajman Branch', marker:'start', pax:'6', verified:''},
-  {id:'e6', date: currentDate, driver_id:'EMP-003', driver_name:'Mohammed Khalid', shift:'1', vehicle_plate:'AUH-33456', arrival_time:'10:15', departure_time:'10:25', geofence_name:'ADIB Al Bateen', marker:'end', pax:'6', verified:''},
+  {id:'e3', date: currentDate, driver_id:'EMP-002', driver_name:'Ahmad Al-Rashid', shift:'1', vehicle_plate:'DXB-11234', arrival_time:'08:45', departure_time:'09:00', geofence_name:'Al Quoz Industrial Area 3', marker:'end', pick_pax:'', drop_pax:'11', notes:'1 passenger dropped earlier at Al Barsha Mall', verified:''},
+  {id:'e4', date: currentDate, driver_id:'EMP-006', driver_name:'James Osei', shift:'2', vehicle_plate:'DXB-11234', arrival_time:'16:10', departure_time:'', geofence_name:'Academy city KHDA', marker:'start', pick_pax:'9', drop_pax:'', verified:''},
+  {id:'e5', date: currentDate, driver_id:'EMP-003', driver_name:'Mohammed Khalid', shift:'1', vehicle_plate:'AUH-33456', arrival_time:'09:30', departure_time:'09:40', geofence_name:'ADCB - Ajman Branch', marker:'start', pick_pax:'6', drop_pax:'', verified:''},
+  {id:'e6', date: currentDate, driver_id:'EMP-003', driver_name:'Mohammed Khalid', shift:'1', vehicle_plate:'AUH-33456', arrival_time:'10:15', departure_time:'10:25', geofence_name:'ADIB Al Bateen', marker:'end', pick_pax:'', drop_pax:'6', verified:''},
   {id:'e7', date: currentDate, driver_id:'EMP-003', driver_name:'Mohammed Khalid', shift:'1', vehicle_plate:'AUH-33456', arrival_time:'10:20', departure_time:'', geofence_name:'(Session closed)', marker:'logoff', verified:''},
 ];
 
@@ -524,13 +528,13 @@ async function bootAuth(){
 // ═══════════════════════════════════════════
 async function loadAll(){
   document.getElementById('dateLabel').textContent =
-    new Date(currentDate+'T00:00:00').toLocaleDateString('en-AE',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) +
+    'Showing all dates — new stops will be dated ' + new Date(currentDate+'T00:00:00').toLocaleDateString('en-AE',{day:'2-digit',month:'2-digit',year:'numeric'}) +
     (isDemo ? '  •  DEMO DATA — click Connect to use your real Sheets' : '');
 
   if (!GAS_URL){
     isDemo = true;
     vehicles = DEMO_VEHICLES; drivers = DEMO_DRIVERS; geofences = DEMO_GEOFENCES;
-    entries = DEMO_ENTRIES.filter(r=>r.date===currentDate);
+    entries = DEMO_ENTRIES;
     renderAll();
     return;
   }
@@ -540,7 +544,7 @@ async function loadAll(){
       fetch(GAS_URL + '?action=records'),
       fetch(GAS_URL + '?action=drivers'),
       fetch(GAS_URL + '?action=geofences'),
-      fetch(GAS_URL + '?action=dispatch_log&date=' + currentDate),
+      fetch(GAS_URL + '?action=dispatch_log'),
     ]);
     const vData = await vRes.json(), dData = await dRes.json(), gData = await gRes.json(), lData = await lRes.json();
     if (vData.ok) vehicles = vData.data; else toast('Vehicle load failed: '+vData.error);
@@ -763,7 +767,7 @@ function renderActiveBar(){
     logoffBtn.className = finalized ? 'btn btn-sm btn-blue' : 'btn btn-sm btn-pink';
     document.getElementById('addStopCard').querySelector('h2').innerHTML =
       finalized
-        ? '2. Add stop <small style="color:var(--red);">— DVMS Completed for this vehicle today. Reopen to add more.</small>'
+        ? '2. Add stop <small style="color:var(--red);">— DVMS Completed for this vehicle. Reopen to add more.</small>'
         : '2. Add stop <small>— search the geofence master, mark it Start / End if it opens or closes a trip</small>';
   } else {
     bar.style.display = 'none';
@@ -805,7 +809,8 @@ function clearStopForm(){
   geoInput().value = '';
   document.getElementById('fArrival').value = '';
   document.getElementById('fDeparture').value = '';
-  document.getElementById('fPax').value = '';
+  document.getElementById('fPickPax').value = '';
+  document.getElementById('fDropPax').value = '';
   document.getElementById('fGeo').value = '';
   document.getElementById('fNotes').value = '';
   document.getElementById('fMarker').selectedIndex = 0;
@@ -814,13 +819,14 @@ function clearStopForm(){
 
 async function addStop(){
   if (!active.vehiclePlate || !active.driver1Id){ toast('Set a vehicle + at least one driver first'); return; }
-  if (isVehicleFinalized(active.vehiclePlate)){ toast('DVMS Completed for this vehicle today — Reopen to add more stops'); return; }
+  if (isVehicleFinalized(active.vehiclePlate)){ toast('DVMS Completed for this vehicle — Reopen to add more stops'); return; }
   const geofence = geoInput().value.trim();
   const arrival = document.getElementById('fArrival').value;
   const departure = document.getElementById('fDeparture').value;
   const marker = document.getElementById('fMarker').value;
   const shift = document.getElementById('fShift').value;
-  const pax = document.getElementById('fPax').value.trim();
+  const pickPax = document.getElementById('fPickPax').value.trim();
+  const dropPax = document.getElementById('fDropPax').value.trim();
   const geo = document.getElementById('fGeo').value.trim();
   const notes = document.getElementById('fNotes').value.trim();
 
@@ -837,20 +843,20 @@ async function addStop(){
     id: isDemo ? 'e_' + Date.now() : undefined,
     date: currentDate, driver_id: driverId, driver_name: driverName, shift,
     vehicle_plate: active.vehiclePlate, arrival_time: arrival, departure_time: departure,
-    geofence_name: geofence, marker, pax, geo, notes, verified:'', created_by: currentUser ? currentUser.name : ''
+    geofence_name: geofence, marker, pick_pax: pickPax, drop_pax: dropPax, geo, notes, verified:'', created_by: currentUser ? currentUser.name : ''
   };
 
   if (isDemo){
     DEMO_ENTRIES.push(record);
     toast('Stop added (demo)');
-    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
+    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPickPax').value=''; document.getElementById('fDropPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
     loadAll();
     return;
   }
   const res = await apiPost(GAS_URL, { action:'save_dispatch', record });
   if (res && res.ok){
     toast('Stop added');
-    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
+    geoInput().value=''; document.getElementById('fArrival').value=''; document.getElementById('fDeparture').value=''; document.getElementById('fPickPax').value=''; document.getElementById('fDropPax').value=''; document.getElementById('fGeo').value=''; document.getElementById('fNotes').value='';
     loadAll();
   } else toast('Save failed: ' + (res?.error || 'unknown error'));
 }
@@ -959,7 +965,8 @@ function renderStopTable(plate, bodyId, emptyId){
             <option value="end" ${e.marker==='end'?'selected':''}>Trip End (at Camp)</option>
           </select>
         </td>
-        <td><input type="number" min="0" id="editPax" value="${esc(e.pax)}" style="width:65px;"></td>
+        <td><input type="number" min="0" id="editPickPax" value="${esc(e.pick_pax)}" style="width:60px;"></td>
+        <td><input type="number" min="0" id="editDropPax" value="${esc(e.drop_pax)}" style="width:60px;"></td>
         <td><input id="editGeoCoords" value="${esc(e.geo)}" placeholder="lat, long" style="width:130px;"></td>
         <td><input id="editNotes" value="${esc(e.notes)}" style="width:100%;"></td>
         <td style="white-space:nowrap;">
@@ -971,7 +978,7 @@ function renderStopTable(plate, bodyId, emptyId){
     if (e.id === transferringEntryId){
       return `<tr>
         <td class="muted">${i+1}</td>
-        <td colspan="8">
+        <td colspan="9">
           Move this stop (<strong>${esc(e.geofence_name)}</strong> at ${esc(e.arrival_time)}) from <strong>${esc(e.vehicle_plate)}</strong> to:
           <div style="position:relative;display:inline-block;width:240px;margin-left:8px;vertical-align:middle;">
             <input id="transferVehicleSearch" placeholder="Search vehicle..." autocomplete="off" style="width:100%;" oninput="filterTransferVehicles(this,'${e.vehicle_plate.replace(/'/g,"\\'")}')">
@@ -991,7 +998,8 @@ function renderStopTable(plate, bodyId, emptyId){
       <td>${esc(e.arrival_time)}</td>
       <td class="muted">${esc(e.departure_time)||'—'}</td>
       <td>${markerBadge(e.marker)}</td>
-      <td>${esc(e.pax)||'—'}</td>
+      <td>${esc(e.pick_pax)||'—'}</td>
+      <td>${esc(e.drop_pax)||'—'}</td>
       <td class="muted">${esc(e.geo)||'—'}</td>
       <td class="muted">${esc(e.notes)||'—'}</td>
       <td style="white-space:nowrap;">
@@ -1056,7 +1064,8 @@ async function saveEdit(id){
   const departure = document.getElementById('editDeparture').value;
   const geofence = document.getElementById('editGeoPoint').value.trim();
   const marker = document.getElementById('editMarker').value;
-  const pax = document.getElementById('editPax').value.trim();
+  const pickPax = document.getElementById('editPickPax').value.trim();
+  const dropPax = document.getElementById('editDropPax').value.trim();
   const geo = document.getElementById('editGeoCoords').value.trim();
   const notes = document.getElementById('editNotes').value.trim();
 
@@ -1067,14 +1076,14 @@ async function saveEdit(id){
 
   if (isDemo){
     const e = DEMO_ENTRIES.find(r=>r.id===id);
-    if (e){ e.arrival_time = arrival; e.departure_time = departure; e.geofence_name = geofence; e.marker = marker; e.pax = pax; e.geo = geo; e.notes = notes; }
+    if (e){ e.arrival_time = arrival; e.departure_time = departure; e.geofence_name = geofence; e.marker = marker; e.pick_pax = pickPax; e.drop_pax = dropPax; e.geo = geo; e.notes = notes; }
     editingEntryId = '';
     toast('Stop updated');
     loadAll();
     return;
   }
   const existing = entries.find(e=>e.id===id);
-  const record = { ...existing, arrival_time: arrival, departure_time: departure, geofence_name: geofence, marker, pax, geo, notes };
+  const record = { ...existing, arrival_time: arrival, departure_time: departure, geofence_name: geofence, marker, pick_pax: pickPax, drop_pax: dropPax, geo, notes };
   const res = await apiPost(GAS_URL, { action:'save_dispatch', record });
   editingEntryId = '';
   if (res && res.ok){ toast('Stop updated'); loadAll(); } else toast('Update failed');
@@ -1087,8 +1096,10 @@ function openDVMS(plate){
   editingEntryId = '';
   const driverNames = [...new Set(entries.filter(e=>e.vehicle_plate===plate).map(e=>e.driver_name))];
   const category = getVehicleCategory(plate);
+  const trips = tripStatsForVehicle(plate).completed;
   document.getElementById('dvmsTitle').textContent = `DVMS — ${plate}${category!=='—' ? ' ('+category+')' : ''}`;
-  document.getElementById('dvmsSubtitle').textContent = driverNames.length ? 'Driver(s): ' + driverNames.join(', ') : '';
+  document.getElementById('dvmsSubtitle').textContent =
+    (driverNames.length ? 'Driver(s): ' + driverNames.join(', ') + '  •  ' : '') + `Trips: ${trips}`;
   renderDVMS(plate);
   document.getElementById('dvmsModal').classList.add('show');
 }
@@ -1106,50 +1117,73 @@ function getVehicleCategory(plate){
 // ═══════════════════════════════════════════
 // EXPORT — CSV for all vehicles, or a single vehicle's DVMS
 // ═══════════════════════════════════════════
-function downloadXlsx(rows, filename){
-  const headers = ['Date','Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks'];
-  const data = rows.map(e => [
+function downloadXlsx(rows, filename, summaryLines){
+  const headers = ['Date','Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pick Pax','Drop Pax','Geo Coordinates','Remarks'];
+  const data = rows.filter(e=>e.marker!=='logoff').map(e => [
     e.date, e.vehicle_plate, getVehicleCategory(e.vehicle_plate), e.driver_name, e.shift==='2'?'2':'1',
-    e.geofence_name, e.arrival_time, e.departure_time, markerLabel(e.marker), e.pax, e.geo, e.notes
+    e.geofence_name, e.arrival_time, e.departure_time, markerLabel(e.marker), e.pick_pax, e.drop_pax, e.geo, e.notes
   ]);
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  const summaryRows = (summaryLines||[]).map(([label,value]) => [label, value]);
+  const aoa = summaryRows.length ? [...summaryRows, [], headers, ...data] : [headers, ...data];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = headers.map(()=>({wch:16}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'DVMS');
   XLSX.writeFile(wb, filename);
 }
 
+function tripCountForRows(rows){
+  // Counts completed Start→End trip pairs across the given rows (any vehicles),
+  // grouped by vehicle so pairing doesn't cross between different vehicles.
+  const byVehicle = {};
+  rows.filter(e=>e.marker!=='logoff').forEach(e=>{
+    (byVehicle[e.vehicle_plate] = byVehicle[e.vehicle_plate] || []).push(e);
+  });
+  let completed = 0;
+  Object.values(byVehicle).forEach(list=>{
+    list.sort((a,b)=>a.arrival_time.localeCompare(b.arrival_time));
+    let awaiting = false;
+    list.forEach(e=>{
+      if (e.marker==='start') awaiting = true;
+      else if (e.marker==='end' && awaiting){ completed++; awaiting = false; }
+    });
+  });
+  return completed;
+}
+
 function exportAllVehicles(){
-  if (!entries.length){ toast('No entries to export for this date'); return; }
+  if (!entries.length){ toast('No entries to export'); return; }
   const sorted = [...entries].sort((a,b)=> a.vehicle_plate.localeCompare(b.vehicle_plate) || a.arrival_time.localeCompare(b.arrival_time));
-  downloadXlsx(sorted, `DVMS_All_Vehicles_${currentDate}.xlsx`);
-  toast('Exported all vehicles');
+  const trips = tripCountForRows(sorted);
+  downloadXlsx(sorted, `DVMS_All_Vehicles.xlsx`, [['Total Trips (all vehicles)', trips]]);
+  toast(`Exported all vehicles — ${trips} trip(s)`);
 }
 
 function exportVehicle(plate){
   const rows = entries.filter(e=>e.vehicle_plate===plate).sort((a,b)=>a.arrival_time.localeCompare(b.arrival_time));
   if (!rows.length){ toast('No entries to export for ' + plate); return; }
-  downloadXlsx(rows, `DVMS_${plate}_${currentDate}.xlsx`);
-  toast('Exported ' + plate);
+  const trips = tripCountForRows(rows);
+  downloadXlsx(rows, `DVMS_${plate}.xlsx`, [['Vehicle', plate], ['Total Trips', trips]]);
+  toast(`Exported ${plate} — ${trips} trip(s)`);
 }
 
 function markerLabel(m){
   return { stop:'Stop', start:'Trip start', end:'Trip end', logoff:'Session closed' }[m] || m;
 }
 
-function buildDvmsPdf(rows, title){
+function buildDvmsPdf(rows, title, tripCount){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape' });
   doc.setFontSize(14);
   doc.text(title, 14, 15);
   doc.setFontSize(9);
   doc.setTextColor(120);
-  doc.text(`Generated ${new Date().toLocaleString('en-AE')}`, 14, 21);
+  doc.text(`Generated ${new Date().toLocaleString('en-AE')}  •  Total Trips: ${tripCount}`, 14, 21);
   doc.autoTable({
-    head: [['Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks']],
-    body: rows.map(e => [
+    head: [['Vehicle','Category','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pick Pax','Drop Pax','Geo Coordinates','Remarks']],
+    body: rows.filter(e=>e.marker!=='logoff').map(e => [
       e.vehicle_plate, getVehicleCategory(e.vehicle_plate), e.driver_name, e.shift==='2'?'2':'1',
-      e.geofence_name, e.arrival_time, e.departure_time||'—', markerLabel(e.marker), e.pax||'—', e.geo||'—', e.notes||'—'
+      e.geofence_name, e.arrival_time, e.departure_time||'—', markerLabel(e.marker), e.pick_pax||'—', e.drop_pax||'—', e.geo||'—', e.notes||'—'
     ]),
     startY: 26,
     styles: { fontSize: 8 },
@@ -1159,21 +1193,23 @@ function buildDvmsPdf(rows, title){
 }
 
 function exportAllVehiclesPdf(){
-  if (!entries.length){ toast('No entries to export for this date'); return; }
+  if (!entries.length){ toast('No entries to export'); return; }
   const sorted = [...entries].sort((a,b)=> a.vehicle_plate.localeCompare(b.vehicle_plate) || a.arrival_time.localeCompare(b.arrival_time));
-  const doc = buildDvmsPdf(sorted, `AGFS Transport DVMS — All Vehicles — ${currentDate}`);
-  doc.save(`DVMS_All_Vehicles_${currentDate}.pdf`);
-  toast('Exported all vehicles (PDF)');
+  const trips = tripCountForRows(sorted);
+  const doc = buildDvmsPdf(sorted, `AGFS Transport DVMS — All Vehicles`, trips);
+  doc.save(`DVMS_All_Vehicles.pdf`);
+  toast(`Exported all vehicles (PDF) — ${trips} trip(s)`);
 }
 
 function exportVehiclePdf(plate){
   const rows = entries.filter(e=>e.vehicle_plate===plate).sort((a,b)=>a.arrival_time.localeCompare(b.arrival_time));
   if (!rows.length){ toast('No entries to export for ' + plate); return; }
   const category = getVehicleCategory(plate);
-  const title = `AGFS Transport DVMS — ${plate}${category!=='—' ? ' ('+category+')' : ''} — ${currentDate}`;
-  const doc = buildDvmsPdf(rows, title);
-  doc.save(`DVMS_${plate}_${currentDate}.pdf`);
-  toast('Exported ' + plate + ' (PDF)');
+  const trips = tripCountForRows(rows);
+  const title = `AGFS Transport DVMS — ${plate}${category!=='—' ? ' ('+category+')' : ''}`;
+  const doc = buildDvmsPdf(rows, title, trips);
+  doc.save(`DVMS_${plate}.pdf`);
+  toast(`Exported ${plate} (PDF) — ${trips} trip(s)`);
 }
 
 function renderSummary(){
@@ -1194,7 +1230,7 @@ function renderSummary(){
   if (!plates.length){
     body.innerHTML='';
     empty.style.display='block';
-    empty.textContent = query ? `No vehicles match "${query}"` : 'No vehicles active yet for this date.';
+    empty.textContent = query ? `No vehicles match "${query}"` : 'No vehicles logged yet.';
     return;
   }
   empty.style.display = 'none';
@@ -1326,7 +1362,7 @@ function closeBulkUpload(){
 }
 
 function downloadDvmsTemplate(){
-  const headers = ['Date','Vehicle','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pax','Geo Coordinates','Remarks'];
+  const headers = ['Date','Vehicle','Driver','Shift','Pick/Drop Point','Arrival','Departure','Marker','Pick Pax','Drop Pax','Geo Coordinates','Remarks'];
   const csv = headers.join(',') + '\n';
   const blob = new Blob([csv], { type:'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -1357,7 +1393,8 @@ async function bulkUploadDvms(){
     arrival: detectCol(headers, ['arrival']),
     departure: detectCol(headers, ['departure']),
     marker: detectCol(headers, ['marker']),
-    pax: detectCol(headers, ['pax','passenger']),
+    pickPax: detectCol(headers, ['pick pax','pickup pax','pick passenger']),
+    dropPax: detectCol(headers, ['drop pax','dropoff pax','drop passenger']),
     coords: detectCol(headers, ['coordinate','geo coord','lat','gps']),
     notes: detectCol(headers, ['remark','note'])
   };
@@ -1383,7 +1420,8 @@ async function bulkUploadDvms(){
     const shift = col.shift!==-1 && String(r[col.shift]).trim()==='2' ? '2' : '1';
     const markerRaw = (col.marker!==-1 ? String(r[col.marker]||'') : '').toLowerCase();
     const marker = markerRaw.includes('start') ? 'start' : markerRaw.includes('end') ? 'end' : 'stop';
-    const pax = col.pax!==-1 ? String(r[col.pax]||'').trim() : '';
+    const pickPax = col.pickPax!==-1 ? String(r[col.pickPax]||'').trim() : '';
+    const dropPax = col.dropPax!==-1 ? String(r[col.dropPax]||'').trim() : '';
     const geoCoords = col.coords!==-1 ? String(r[col.coords]||'').trim() : '';
     const notes = col.notes!==-1 ? String(r[col.notes]||'').trim() : '';
     const driverNameRaw = col.driver!==-1 ? String(r[col.driver]||'').trim() : '';
@@ -1398,7 +1436,7 @@ async function bulkUploadDvms(){
       id: isDemo ? 'e_' + Date.now() + '_' + i : undefined,
       date, driver_id: driverMatch.driver_id, driver_name: driverMatch.name, shift,
       vehicle_plate: vehiclePlate, arrival_time: arrival, departure_time: departure,
-      geofence_name: geofence, marker, pax, geo: geoCoords, notes, verified:''
+      geofence_name: geofence, marker, pick_pax: pickPax, drop_pax: dropPax, geo: geoCoords, notes, verified:''
     });
   });
 
