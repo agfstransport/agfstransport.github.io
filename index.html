@@ -436,8 +436,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="nav-tab" data-tab="drivers" onclick="switchTab('drivers')"><span class="nav-icon">👤</span> Driver Master <span class="nav-cnt" id="nc-drivers">0</span></div>
     <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab" data-tab="permits" onclick="switchTab('permits')"><span class="nav-icon">📜</span> Permits <span class="nav-cnt" id="nc-permits">0</span></div>
-    <div class="nav-tab" data-tab="dispatch" onclick="switchTab('dispatch')"><span class="nav-icon">🚚</span> Dispatcher (DVMS)</div>
-    <div class="nav-tab admin-only" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
+    <div class="nav-tab manager-up" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
   </div>
 
   <!-- DASHBOARD -->
@@ -783,11 +782,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     </div>
   </div>
 
-  <!-- DISPATCHER (DVMS) — embedded, same site, same login session -->
-  <div class="page" id="page-dispatch" style="padding:0;max-width:none;">
-    <iframe id="dispatchFrame" data-src="./dispatcher.html" style="width:100%;height:calc(100vh - 130px);border:0;display:block;background:#f1f5f9;"></iframe>
-  </div>
-
   <!-- ACCESS CONTROL -->
   <div class="page" id="page-access">
     <div id="approvalsBanner" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px;">
@@ -798,6 +792,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="section-hd"><h2>🔔 Pending Approvals</h2><div class="line"></div></div>
       <div id="approvalsList"></div>
     </div>
+    <div class="admin-only">
     <div class="section-hd"><h2>Access Control</h2><div class="line"></div><div class="hd-btn"><button class="btn btn-ghost btn-sm" onclick="changeGasUrl()">🔗 Sheet Connection</button><button class="btn btn-primary btn-sm" onclick="openUserModal()">+ New User</button></div></div>
     <div class="user-cards" id="userCards"></div>
     <div class="card">
@@ -839,6 +834,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div id="permitFieldConfig"></div>
       </div>
     </div>
+    </div>
   </div>
 </div>
 
@@ -856,10 +852,12 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="verify-grid" id="vVerifyGrid"></div>
       </div>
       <div class="fgrid">
-        <div class="fg"><label>Plate Number *</label><div class="autocomplete-wrap"><input type="text" id="v-plate" placeholder="e.g. DXB-11234" oninput="acPlate(this)"><div class="autocomplete-drop" id="ac-plate"></div></div></div>
+        <div class="fg"><label>Plate Number *</label><div class="autocomplete-wrap"><input type="text" id="v-plate" placeholder="e.g. DXB-11234" oninput="acPlate(this)"><div class="autocomplete-drop" id="ac-plate"></div></div>
+          <div id="v-uid-display" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+        </div>
         <div class="fg"><label>Status *</label><select id="v-status"><option>Active</option><option>Under Maintenance</option><option>Total Loss</option><option>De-fleet</option><option>Idle</option><option>Adhoc</option><option>Accident</option><option>Off Hire</option><option>Replacement Veh Received</option></select></div>
         <div class="fg"><label>Plate Code <span style="color:var(--pink)">*</span></label><input type="text" id="v-reg" placeholder="e.g. Dubai A, Abu Dhabi B…"></div>
-        <div class="fg"><label>Make / Model <span style="color:var(--pink)">*</span></label><select id="v-make" onchange="autoFillCategory(this.value)">
+        <div class="fg"><label>Make / Model <span style="color:var(--pink)">*</span></label><select id="v-make">
           <option value="">— Select Make —</option>
           <option>MITSUBISHI L200</option>
           <option>TATA</option>
@@ -1266,7 +1264,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fg"><label>Full Name *</label><input type="text" id="u-name" placeholder="Full name"></div>
         <div class="fg"><label>Employee ID *</label><input type="text" id="u-id" placeholder="EMP-001"><div class="hint" id="u-id-hint" style="color:#0369a1;"></div></div>
         <div class="fg"><label>Password *</label><input type="password" id="u-pw" placeholder="Set password"></div>
-        <div class="fg"><label>Role</label><select id="u-role"><option value="ops">Operations</option><option value="admin">Admin</option></select></div>
+        <div class="fg"><label>Role</label><select id="u-role"><option value="ops">Operations</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
         <div class="fg"><label>Department</label><input type="text" id="u-dept" placeholder="Dept / Region"></div>
         <div class="fg"><label>Email (optional)</label><input type="email" id="u-email" placeholder="user@agfs.ae"></div>
       </div>
@@ -1494,7 +1492,9 @@ function startApp() {
   document.getElementById('umAvatar').textContent = currentUser.name.charAt(0).toUpperCase();
 
   const isAdmin = currentUser.role === 'admin';
+  const isManagerUp = currentUser.role === 'admin' || currentUser.role === 'manager';
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? '' : 'none');
+  document.querySelectorAll('.manager-up').forEach(el => el.style.display = isManagerUp ? '' : 'none');
   document.querySelectorAll('.ops-only').forEach(el => el.style.display = isAdmin ? 'none' : '');
 
   // Completely lock out Access Control page for non-admins
@@ -1658,9 +1658,10 @@ function autoDetectCustomCols(tracker, records, knownKeys) {
   if (!records || !records.length) return;
   const existing = getCustomCols(tracker);
   const existingKeys = new Set(existing.map(c => c.key));
+  const removedKeys = new Set(getRemovedCustomCols(tracker).map(c => c.key)); // don't resurrect a column an admin removed
   const found = new Set();
   records.forEach(r => Object.keys(r).forEach(k => {
-    if (!knownKeys.has(k) && k !== 'id' && !existingKeys.has(k)) found.add(k);
+    if (!knownKeys.has(k) && k !== 'id' && !existingKeys.has(k) && !removedKeys.has(k)) found.add(k);
   }));
   if (!found.size) return;
   const newCols = [...found].map(k => {
@@ -2296,6 +2297,7 @@ function renderDonut(id, data) {
 // ══════════════════════════════════════════
 const FLEET_COLS = [
   { key:'plate',       label:'Plate No',    locked:true  },
+  { key:'vehicle_uid', label:'Vehicle ID',  locked:true  },
   { key:'reg',         label:'Plate Code',  def:true, protected:true },
   { key:'make',        label:'Make/Model',  def:true, protected:true },
   { key:'category',    label:'Category',    def:true, protected:true },
@@ -2370,6 +2372,13 @@ function saveCustomCols(tracker, cols) {
   localStorage.setItem('agfsCustomCols_' + tracker, JSON.stringify(cols));
   syncFieldConfigToSheet(); // push so all users/devices see the new/removed custom column
 }
+function getRemovedCustomCols(tracker) {
+  try { return JSON.parse(localStorage.getItem('agfsRemovedCustomCols_' + tracker) || '[]'); } catch(e){ return []; }
+}
+function saveRemovedCustomCols(tracker, cols) {
+  localStorage.setItem('agfsRemovedCustomCols_' + tracker, JSON.stringify(cols));
+  syncFieldConfigToSheet();
+}
 function getRemovedBaseCols(tracker) {
   try { return JSON.parse(localStorage.getItem('agfsRemovedBaseCols_' + tracker) || '[]'); } catch(e){ return []; }
 }
@@ -2414,8 +2423,9 @@ function buildColMenu(tracker, drop) {
     <div style="padding:8px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">
       <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;" onclick="openAddColModal('${tracker}')">+ Add Custom Column</button>
     </div>` : '';
-  const removedBase = isAdmin ? getRemovedBaseCols(tracker) : [];
-  const restoreSection = removedBase.length ? `
+  const removedBase   = isAdmin ? getRemovedBaseCols(tracker) : [];
+  const removedCustom = isAdmin ? getRemovedCustomCols(tracker) : [];
+  const restoreSection = (removedBase.length || removedCustom.length) ? `
     <div style="padding:6px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Removed Columns</div>
       ${removedBase.map(k => {
@@ -2426,6 +2436,10 @@ function buildColMenu(tracker, drop) {
           <span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();restoreBaseCol('${tracker}','${k}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
         </div>`;
       }).join('')}
+      ${removedCustom.map(def => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;">
+          <span style="color:#64748b;">${def.label}</span>
+          <span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();restoreCustomCol('${tracker}','${def.key}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
+        </div>`).join('')}
     </div>` : '';
   const resetBtn = `
     <div style="padding:4px 14px 6px;">
@@ -2463,7 +2477,6 @@ function colDrop(e, tracker) {
   order.splice(fromIdx, 1);
   order.splice(toIdx, 0, _dragSrcKey);
   saveColOrder(tracker, order);
-  syncFieldConfigToSheet();
   _dragSrcKey = null;
   // Rebuild menu
   const drop = document.getElementById(tracker + 'ColDrop');
@@ -2474,7 +2487,6 @@ function colDrop(e, tracker) {
 }
 function resetColOrder(tracker) {
   localStorage.removeItem('agfsColOrder_' + tracker);
-  syncFieldConfigToSheet();
   const drop = document.getElementById(tracker + 'ColDrop');
   buildColMenu(tracker, drop);
   if (tracker === 'fleet') renderFleet();
@@ -2485,21 +2497,24 @@ function toggleCol(tracker, key, checked) {
   const vis = getVisibleCols(tracker);
   vis[key] = checked;
   saveVisibleCols(tracker, vis);
-  syncFieldConfigToSheet();
   if (tracker === 'fleet') renderFleet();
   else renderDrivers();
 }
 
 function removeCustomCol(tracker, key) {
   if (currentUser?.role !== 'admin') return;
-  const isCustom = getCustomCols(tracker).some(c => c.key === key);
+  const customDef = getCustomCols(tracker).find(c => c.key === key);
+  const isCustom = !!customDef;
   const msg = isCustom
-    ? 'Remove this custom column? Data already saved in records will not be deleted.'
+    ? 'Remove this custom column? Data already saved in records will not be deleted, and you can restore it anytime from the "Removed Columns" section.'
     : 'Remove this column from the list? Data already saved in records will not be deleted, and you can restore it anytime from the "Removed Columns" section.';
   if (!confirm(msg)) return;
   if (isCustom) {
     const custom = getCustomCols(tracker).filter(c => c.key !== key);
     saveCustomCols(tracker, custom);
+    const removedCustom = getRemovedCustomCols(tracker).filter(c => c.key !== key);
+    removedCustom.push(customDef);
+    saveRemovedCustomCols(tracker, removedCustom);
   } else {
     const removed = getRemovedBaseCols(tracker);
     if (!removed.includes(key)) removed.push(key);
@@ -2507,6 +2522,21 @@ function removeCustomCol(tracker, key) {
   }
   const vis = getVisibleCols(tracker);
   delete vis[key];
+  saveVisibleCols(tracker, vis);
+  document.querySelectorAll('.col-toggle-drop').forEach(d => d.classList.remove('open'));
+  if (tracker === 'fleet') renderFleet();
+  else renderDrivers();
+}
+
+function restoreCustomCol(tracker, key) {
+  if (currentUser?.role !== 'admin') return;
+  const removedCustom = getRemovedCustomCols(tracker);
+  const def = removedCustom.find(c => c.key === key);
+  if (!def) return;
+  saveRemovedCustomCols(tracker, removedCustom.filter(c => c.key !== key));
+  saveCustomCols(tracker, [...getCustomCols(tracker), def]);
+  const vis = getVisibleCols(tracker);
+  vis[key] = true;
   saveVisibleCols(tracker, vis);
   document.querySelectorAll('.col-toggle-drop').forEach(d => d.classList.remove('open'));
   if (tracker === 'fleet') renderFleet();
@@ -3068,6 +3098,8 @@ function openVehicleModal(plate) {
   editingVehiclePlate = plate || null;
   vFields.forEach(f => { const el=document.getElementById('v-'+f); if(el) el.value=''; });
   document.getElementById('v-status').value = 'Active';
+  const uidDisplay = document.getElementById('v-uid-display');
+  if (uidDisplay) uidDisplay.textContent = plate ? '' : 'Vehicle ID will be auto-generated on save';
   // Always hide verify box on open
   const vvb = document.getElementById('vVerifyBox');
   if (vvb) vvb.style.display = 'none';
@@ -3083,6 +3115,8 @@ function openVehicleModal(plate) {
 
   if (plate) {
     const v = vehicles.find(x=>x.plate===plate);
+    const uidEl = document.getElementById('v-uid-display');
+    if (uidEl) uidEl.textContent = v?.vehicle_uid ? `Vehicle ID: ${v.vehicle_uid}` : '';
     if (v) vFields.forEach(f=>{
       const el=document.getElementById('v-'+f);
       if(!el) return;
@@ -3259,7 +3293,7 @@ async function saveVehicle() {
 
   // Also check pending approval queue for duplicates
   const pendingDup = getRequests().find(r =>
-    r.status === 'pending' && r.type === 'fleet' &&
+    (r.status === 'pending_manager' || r.status === 'pending_admin') && r.type === 'fleet' &&
     (r.data?.plate||'').toUpperCase() === inputPlate &&
     r.data?.plate !== editingVehiclePlate
   );
@@ -3267,23 +3301,29 @@ async function saveVehicle() {
     if (!confirm(`⚠️ A pending approval request already exists for plate "${inputPlate}" submitted by ${pendingDup.submittedBy}.\n\nSubmit anyway?`)) return;
   }
 
-  // Ops user adding NEW vehicle → route to approval queue
+  // Non-admin adding NEW vehicle → route to approval queue (two-stage: ops needs manager review first)
   if (!isAdmin && !editingVehiclePlate) {
     const data = {};
     vFields.forEach(f => data[f] = g(f));
     data.rqNotes = g('remarks');
+    const initialStatus = currentUser?.role === 'manager' ? 'pending_admin' : 'pending_manager';
     const requests = getRequests();
     requests.unshift({
-      id: 'rq_' + Date.now(), type: 'fleet', status: 'pending', data,
+      id: 'rq_' + Date.now(), type: 'fleet', status: initialStatus, data,
       submittedBy: currentUser?.name||'—', submittedId: currentUser?.id||'—',
       submittedAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}),
       reviewedBy:'', reviewedAt:'', rejectReason:'',
     });
     saveRequests(requests);
     updateApprovalBadge();
-    pushNotification(currentUser.id, 'Vehicle Submitted', `Your vehicle ${data.plate} — ${data.make} has been submitted for admin approval.`, 'info');
+    if (initialStatus === 'pending_manager') {
+      notifyByRole('manager', '📝 New Vehicle for Review', `${currentUser.name} submitted vehicle ${data.plate} for manager review.`, 'info');
+    } else {
+      notifyByRole('admin', '📝 Ready for Final Approval', `${currentUser.name} (manager) submitted vehicle ${data.plate} awaiting your final approval.`, 'info');
+    }
+    pushNotification(currentUser.id, 'Vehicle Submitted', `Your vehicle ${data.plate} — ${data.make} has been submitted for review.`, 'info');
     closeModal('vehicleModal');
-    showSuccessToast('✅ Vehicle submitted! Admin will review and you will be notified.', 4000);
+    showSuccessToast('✅ Vehicle submitted for review!', 4000);
     return;
   }
 
@@ -3306,7 +3346,7 @@ async function saveVehicle() {
   const isUpdate = idx >= 0;
   const oldRec = isUpdate ? {...vehicles[idx]} : {};
   if (isUpdate) vehicles[idx]={...vehicles[idx],...record};
-  else vehicles.push(record);
+  else { record.vehicle_uid = generateVehicleUID(record.plate); vehicles.push(record); }
   persistVehicles();
 
   // Log field-level changes locally
@@ -3324,6 +3364,27 @@ async function saveVehicle() {
 let _pendingDelete = null;
 
 function requestDelete(type, id, label) {
+  // Manager: submit a removal request for admin approval instead of deleting directly
+  if (currentUser?.role === 'manager') {
+    if (!confirm(`Request removal of "${label}"?\n\nAn admin will need to give final approval before it's actually deleted.`)) return;
+    const requests = getRequests();
+    requests.unshift({
+      id: 'rq_' + Date.now(),
+      type: type === 'vehicle' ? 'delete_fleet' : 'delete_driver',
+      status: 'pending_admin', // manager is the requester, so it goes straight to admin
+      data: { targetId: id, label },
+      submittedBy: currentUser?.name || '—',
+      submittedId: currentUser?.id || '—',
+      submittedAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}),
+      reviewedBy: '', reviewedAt: '', rejectReason: '',
+    });
+    saveRequests(requests);
+    updateApprovalBadge();
+    notifyByRole('admin', '🗑 Removal Requested', `${currentUser.name} requested removal of ${label}. Please review in Access Control.`, 'info');
+    showSuccessToast('✅ Removal request submitted — admin will review.', 3500);
+    return;
+  }
+
   _pendingDelete = { type, id };
   document.getElementById('deleteConfirmMsg').textContent =
     `You are about to permanently delete: "${label}". This cannot be undone.`;
@@ -3931,27 +3992,17 @@ function getAllFieldConfigs() {
       fleet:  getRemovedBaseCols('fleet'),
       driver: getRemovedBaseCols('driver'),
     },
-    visibleCols: {
-      fleet:  getVisibleCols('fleet'),
-      driver: getVisibleCols('driver'),
-    },
-    colOrder: {
-      fleet:  getColOrder('fleet'),
-      driver: getColOrder('driver'),
+    removedCustomCols: {
+      fleet:  getRemovedCustomCols('fleet'),
+      driver: getRemovedCustomCols('driver'),
     },
   };
 }
 
 // Push field configs to Sheet so all users/devices get the same dropdowns
-async function syncFieldConfigToSheet() {
+function syncFieldConfigToSheet() {
   if (!GAS_URL) return;
-  const configs = getAllFieldConfigs();
-  let res = await apiPost({ action: 'save_field_configs', configs });
-  if (!res || !res.ok) {
-    // one retry — Apps Script Web Apps occasionally drop a request under load
-    res = await apiPost({ action: 'save_field_configs', configs });
-  }
-  if (!res || !res.ok) console.warn('Field config save failed after retry — will resync from local on next load.');
+  apiPost({ action: 'save_field_configs', configs: getAllFieldConfigs() });
 }
 
 // Pull field configs from Sheet on login/sync
@@ -3974,24 +4025,9 @@ async function syncFieldConfigFromSheet() {
           if (j.data.removedBaseCols[t]) localStorage.setItem('agfsRemovedBaseCols_' + t, JSON.stringify(j.data.removedBaseCols[t]));
         });
       }
-      if (j.data.visibleCols) {
+      if (j.data.removedCustomCols) {
         ['fleet','driver'].forEach(t => {
-          if (j.data.visibleCols[t]) {
-            // Local wins: only fill in columns this device hasn't decided on yet.
-            // Prevents a failed/slow save from being silently reverted on next refresh.
-            let local = {};
-            try { local = JSON.parse(localStorage.getItem('agfsCols_' + t) || '{}'); } catch(e){}
-            localStorage.setItem('agfsCols_' + t, JSON.stringify({ ...j.data.visibleCols[t], ...local }));
-          }
-        });
-      }
-      if (j.data.colOrder) {
-        ['fleet','driver'].forEach(t => {
-          if (j.data.colOrder[t]) {
-            // Only adopt server's order if this device has never set its own.
-            const localOrder = localStorage.getItem('agfsColOrder_' + t);
-            if (!localOrder) localStorage.setItem('agfsColOrder_' + t, JSON.stringify(j.data.colOrder[t]));
-          }
+          if (j.data.removedCustomCols[t]) localStorage.setItem('agfsRemovedCustomCols_' + t, JSON.stringify(j.data.removedCustomCols[t]));
         });
       }
       applyFieldConfigs();
@@ -4600,6 +4636,22 @@ function openRequestModal(type) {
   document.getElementById('requestModal').classList.add('open');
 }
 
+// Generates a stable, human-readable unique ID per vehicle: PLATE-0001.
+// Tracks a per-plate sequence so re-adding a previously-deleted plate still gets a fresh unique ID.
+function generateVehicleUID(plate) {
+  const seqMap = JSON.parse(localStorage.getItem('agfsPlateSeq') || '{}');
+  const n = (seqMap[plate] || 0) + 1;
+  seqMap[plate] = n;
+  localStorage.setItem('agfsPlateSeq', JSON.stringify(seqMap));
+  return `${plate}-${String(n).padStart(4,'0')}`;
+}
+
+function notifyByRole(role, title, message, type) {
+  getUsers().filter(u => u.role === role && u.active !== false).forEach(u => {
+    pushNotification(u.id, title, message, type);
+  });
+}
+
 function submitRequest() {
   const type   = _requestType;
   const fields = type === 'fleet' ? REQUEST_FLEET_FIELDS : REQUEST_DRIVER_FIELDS;
@@ -4614,11 +4666,13 @@ function submitRequest() {
   if (errs.length) { alert('Required fields:\n• ' + errs.join('\n• ')); return; }
   data.notes    = document.getElementById('request-notes').value.trim();
   data.rqNotes  = data.notes;
+  // Ops submissions need a manager's review first; a manager's own submission skips straight to admin.
+  const initialStatus = currentUser?.role === 'manager' ? 'pending_admin' : 'pending_manager';
   const requests = getRequests();
   requests.unshift({
     id:          'rq_' + Date.now(),
     type,
-    status:      'pending',
+    status:      initialStatus,
     data,
     submittedBy: currentUser?.name  || '—',
     submittedId: currentUser?.id    || '—',
@@ -4630,24 +4684,46 @@ function submitRequest() {
   saveRequests(requests);
   closeModal('requestModal');
   updateApprovalBadge();
-  alert('✅ Your request has been submitted and is pending admin approval.');
+  if (initialStatus === 'pending_manager') {
+    notifyByRole('manager', '📝 New Request for Review', `${currentUser.name} submitted a new ${type} request that needs manager review.`, 'info');
+  } else {
+    notifyByRole('admin', '📝 Ready for Final Approval', `${currentUser.name} (manager) submitted a new ${type} request awaiting your final approval.`, 'info');
+  }
+  alert(initialStatus === 'pending_manager'
+    ? '✅ Your request has been submitted and is pending manager review.'
+    : '✅ Your request has been submitted and is pending admin approval.');
 }
 
 function updateApprovalBadge() {
-  const pending = getRequests().filter(r => r.status === 'pending').length;
-  const badge   = document.getElementById('nc-approvals');
-  if (!badge) return;
-  if (pending > 0) { badge.textContent = pending; badge.style.display = 'inline'; }
-  else              { badge.style.display = 'none'; }
+  const role = currentUser?.role;
+  const allPending = getRequests().filter(r => r.status === 'pending_manager' || r.status === 'pending_admin');
+  // What counts as "actionable for me right now"
+  const myPending = role === 'manager'
+    ? allPending.filter(r => r.status === 'pending_manager')
+    : role === 'admin'
+      ? allPending.filter(r => r.status === 'pending_admin')
+      : [];
+  const badge = document.getElementById('nc-approvals');
+  if (badge) {
+    if (myPending.length > 0) { badge.textContent = myPending.length; badge.style.display = 'inline'; }
+    else                       { badge.style.display = 'none'; }
+  }
   // Show banner in access page
   const banner    = document.getElementById('approvalsBanner');
   const bannerTxt = document.getElementById('approvalsBannerText');
   const section   = document.getElementById('approvalsSection');
   if (banner && section) {
-    if (pending > 0 && currentUser?.role === 'admin') {
+    if (myPending.length > 0 && ['admin','manager'].includes(role)) {
       banner.style.cssText = banner.style.cssText.replace('display:none','display:flex');
       banner.style.display = 'flex';
-      if (bannerTxt) bannerTxt.textContent = `${pending} pending request${pending>1?'s':''} awaiting your approval`;
+      if (bannerTxt) bannerTxt.textContent = role === 'manager'
+        ? `${myPending.length} request${myPending.length>1?'s':''} awaiting your review`
+        : `${myPending.length} request${myPending.length>1?'s':''} awaiting your final approval`;
+      section.style.display = 'block';
+      renderApprovals();
+    } else if (['admin','manager'].includes(role) && allPending.length > 0) {
+      // Nothing actionable right now, but still show the (empty-for-me) list so it's not confusing
+      banner.style.display = 'none';
       section.style.display = 'block';
       renderApprovals();
     } else {
@@ -4660,44 +4736,133 @@ function updateApprovalBadge() {
 function renderApprovals() {
   const el = document.getElementById('approvalsList');
   if (!el) return;
-  const requests = getRequests().filter(r => r.status === 'pending');
+  const role = currentUser?.role;
+  // Manager sees requests waiting on their review; admin sees everything relevant (both stages, read-only for manager-stage)
+  const requests = role === 'manager'
+    ? getRequests().filter(r => r.status === 'pending_manager')
+    : getRequests().filter(r => r.status === 'pending_manager' || r.status === 'pending_admin');
   if (!requests.length) { el.innerHTML = '<div class="no-data">No pending requests.</div>'; return; }
 
   el.innerHTML = requests.map(r => {
     const d = r.data || {};
-    const summary = r.type === 'fleet'
-      ? `Plate: <strong>${d.plate||'—'}</strong> · ${d.make||'—'} · ${d.region||'—'}`
-      : `Driver: <strong>${d.name||'—'}</strong> · ${d.driver_type||'—'} · ${d.location||'—'}`;
-    const fields = r.type === 'fleet' ? REQUEST_FLEET_FIELDS : REQUEST_DRIVER_FIELDS;
-    const details = fields.map(f=>`<div style="font-size:11px;color:#475569;"><span style="color:#94a3b8;min-width:130px;display:inline-block;">${f.label}</span> <strong>${d[f.id.replace('rq-','')]||'—'}</strong></div>`).join('');
-    return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--pink);">
-      <div class="card-head" style="padding:10px 14px;">
-        <span class="badge ${r.type==='fleet'?'b-deployed':'b-active'}" style="margin-right:8px;">${r.type==='fleet'?'🚗 Fleet':'👤 Driver'}</span>
-        <span style="font-size:12px;">${summary}</span>
-        <span style="margin-left:auto;font-size:11px;color:#94a3b8;">${r.submittedBy} (${r.submittedId}) · ${r.submittedAt}</span>
-      </div>
-      <div style="padding:10px 14px;background:#fafbff;border-top:1px solid var(--border);">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">${details}</div>
-        ${d.rqNotes?`<div style="margin-top:8px;font-size:11px;color:#475569;background:#fff;border:1px solid var(--border);border-radius:5px;padding:6px 9px;"><strong>Notes:</strong> ${d.rqNotes}</div>`:''}
-      </div>
-      <div style="padding:10px 14px;display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-green btn-sm" data-rqid="${r.id}" onclick="approveRequest(this.dataset.rqid)">✅ Approve & Add</button>
+    const isDelete = r.type === 'delete_fleet' || r.type === 'delete_driver';
+    let summary, typeBadge, details = '';
+    if (isDelete) {
+      typeBadge = `<span class="badge b-termination" style="margin-right:8px;">🗑 Remove ${r.type==='delete_fleet'?'Vehicle':'Driver'}</span>`;
+      summary = `<strong>${d.label||'—'}</strong>`;
+    } else {
+      typeBadge = `<span class="badge ${r.type==='fleet'?'b-deployed':'b-active'}" style="margin-right:8px;">${r.type==='fleet'?'🚗 Fleet':'👤 Driver'}</span>`;
+      summary = r.type === 'fleet'
+        ? `Plate: <strong>${d.plate||'—'}</strong> · ${d.make||'—'} · ${d.region||'—'}`
+        : `Driver: <strong>${d.name||'—'}</strong> · ${d.driver_type||'—'} · ${d.location||'—'}`;
+      const fields = r.type === 'fleet' ? REQUEST_FLEET_FIELDS : REQUEST_DRIVER_FIELDS;
+      details = fields.map(f=>`<div style="font-size:11px;color:#475569;"><span style="color:#94a3b8;min-width:130px;display:inline-block;">${f.label}</span> <strong>${d[f.id.replace('rq-','')]||'—'}</strong></div>`).join('');
+    }
+    const stageBadge = r.status === 'pending_manager'
+      ? `<span class="badge b-maint" style="margin-left:8px;">Awaiting Manager Review</span>`
+      : `<span class="badge b-active" style="margin-left:8px;">Awaiting Final Approval${r.managerApprovedBy ? ' · Manager: '+r.managerApprovedBy : ''}</span>`;
+
+    // Decide which action buttons this viewer gets for this request's current stage
+    let actions = '';
+    if (role === 'manager' && r.status === 'pending_manager') {
+      actions = `<button class="btn btn-green btn-sm" data-rqid="${r.id}" onclick="managerApproveRequest(this.dataset.rqid)">✅ Approve → Send to Admin</button>
         <div style="display:flex;gap:6px;align-items:center;margin-left:auto;">
           <input type="text" placeholder="Reason for rejection (optional)" id="reject-reason-${r.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;width:220px;">
           <button class="btn btn-danger btn-sm" data-rqid="${r.id}" onclick="rejectRequest(this.dataset.rqid)">✕ Reject</button>
-        </div>
+        </div>`;
+    } else if (role === 'admin' && r.status === 'pending_admin') {
+      actions = `<button class="btn btn-green btn-sm" data-rqid="${r.id}" onclick="approveRequest(this.dataset.rqid)">✅ ${isDelete ? 'Approve Removal' : 'Approve & Add'}</button>
+        <div style="display:flex;gap:6px;align-items:center;margin-left:auto;">
+          <input type="text" placeholder="Reason for rejection (optional)" id="reject-reason-${r.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;width:220px;">
+          <button class="btn btn-danger btn-sm" data-rqid="${r.id}" onclick="rejectRequest(this.dataset.rqid)">✕ Reject</button>
+        </div>`;
+    } else if (role === 'admin' && r.status === 'pending_manager') {
+      // Admin can see it but it's still waiting on the manager — offer a reject-only override
+      actions = `<span style="font-size:11px;color:#94a3b8;">Waiting on manager review</span>
+        <div style="display:flex;gap:6px;align-items:center;margin-left:auto;">
+          <input type="text" placeholder="Reason for rejection (optional)" id="reject-reason-${r.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;width:220px;">
+          <button class="btn btn-danger btn-sm" data-rqid="${r.id}" onclick="rejectRequest(this.dataset.rqid)">✕ Reject</button>
+        </div>`;
+    }
+
+    return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${isDelete?'var(--red)':'var(--pink)'};">
+      <div class="card-head" style="padding:10px 14px;flex-wrap:wrap;">
+        ${typeBadge}
+        <span style="font-size:12px;">${summary}</span>
+        ${stageBadge}
+        <span style="margin-left:auto;font-size:11px;color:#94a3b8;">${r.submittedBy} (${r.submittedId}) · ${r.submittedAt}</span>
       </div>
+      ${details ? `<div style="padding:10px 14px;background:#fafbff;border-top:1px solid var(--border);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">${details}</div>
+        ${d.rqNotes?`<div style="margin-top:8px;font-size:11px;color:#475569;background:#fff;border:1px solid var(--border);border-radius:5px;padding:6px 9px;"><strong>Notes:</strong> ${d.rqNotes}</div>`:''}
+      </div>` : ''}
+      <div style="padding:10px 14px;display:flex;gap:8px;align-items:center;">${actions}</div>
     </div>`;
   }).join('');
 }
 
+function managerApproveRequest(rqId) {
+  if (currentUser?.role !== 'manager') return;
+  const requests = getRequests();
+  const rq = requests.find(r => r.id === rqId);
+  if (!rq || rq.status !== 'pending_manager') return;
+  if (!confirm('Approve this request and send it to admin for final approval?')) return;
+  rq.status = 'pending_admin';
+  rq.managerApprovedBy = currentUser.name;
+  rq.managerApprovedAt = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
+  saveRequests(requests);
+  const label = rq.type === 'fleet' ? `vehicle ${rq.data?.plate||''}` : `driver ${rq.data?.name||''}`;
+  notifyByRole('admin', '📝 Ready for Final Approval', `${rq.submittedBy}'s ${label} request was approved by manager ${currentUser.name} and needs your final approval.`, 'info');
+  pushNotification(rq.submittedId, '👍 Manager Approved', `Your ${label} request was approved by ${currentUser.name} and is now awaiting final admin approval.`, 'info');
+  updateApprovalBadge();
+  renderApprovals();
+  showSuccessToast('✅ Sent to admin for final approval', 3000);
+}
+
 function approveRequest(rqId) {
+  if (currentUser?.role !== 'admin') return;
   const requests = getRequests();
   const rq = requests.find(r => r.id === rqId);
   if (!rq) return;
+  if (rq.status !== 'pending_admin') { alert('This request still needs manager review first.'); return; }
   const d = rq.data;
   const now = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
 
+  // ── Deletion requests (manager-initiated) ──────────────────
+  if (rq.type === 'delete_fleet' || rq.type === 'delete_driver') {
+    if (rq.type === 'delete_fleet') {
+      const id = d.targetId;
+      const v = vehicles.find(x => String(x.plate) === String(id));
+      logChange('fleet','Deleted',id,`${id} — ${v?.make||''}`,[
+        {field:'ALL',label:'Removal approved by',oldVal:'Existed',newVal:`${currentUser.name} · ${now}`},
+        {field:'requestedBy',label:'Requested by',oldVal:'',newVal:`${rq.submittedBy} (${rq.submittedId})`}
+      ]);
+      vehicles = vehicles.filter(x => String(x.plate) !== String(id));
+      persistVehicles();
+      renderFleet();
+      apiPost({ action:'delete', plate:id, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    } else {
+      const id = d.targetId;
+      const dr = drivers.find(x => String(x.driver_id) === String(id));
+      logChange('driver','Deleted',id,`${dr?.name||id}`,[
+        {field:'ALL',label:'Removal approved by',oldVal:'Existed',newVal:`${currentUser.name} · ${now}`},
+        {field:'requestedBy',label:'Requested by',oldVal:'',newVal:`${rq.submittedBy} (${rq.submittedId})`}
+      ]);
+      drivers = drivers.filter(x => String(x.driver_id) !== String(id));
+      persistDrivers();
+      renderDrivers();
+      apiPost({ action:'delete_driver', driver_id:id });
+    }
+    const updatedRequests = requests.filter(r => r.id !== rqId);
+    saveRequests(updatedRequests);
+    pushNotification(rq.submittedId, '✅ Removal Approved', `Your removal request for ${d.label} has been approved by ${currentUser.name}.`, 'success');
+    updateApprovalBadge();
+    renderAll();
+    showSuccessToast(`✅ Removed: ${d.label}`, 3500);
+    return;
+  }
+
+  // ── Add requests (fleet / driver) ──────────────────────────
   if (rq.type === 'fleet') {
     const record = {
       id:'v_'+Date.now(), plate:d.plate, reg:d.reg, make:d.make,
@@ -4706,12 +4871,14 @@ function approveRequest(rqId) {
       end_user_id:d.end_user_id||'', designation:d.designation||'',
       contract:d.contract||'', phone:d.phone||'', region:d.region,
       job_code:d.job_code||'', gps_rfid:d.gps_rfid||'', utilization:d.utilization||'',
-      status:d.status||'Active', remarks:d.remarks||d.rqNotes||''
+      status:d.status||'Active', remarks:d.remarks||d.rqNotes||'',
+      vehicle_uid: generateVehicleUID(d.plate),
     };
     vehicles.push(record);
     persistVehicles();
     logChange('fleet','Added',record.plate,`${record.plate} — ${record.make}`,[
       {field:'ALL',label:'Approved by',oldVal:'Pending Approval',newVal:`${currentUser.name} · ${now}`},
+      {field:'managerApprovedBy',label:'Manager approval',oldVal:'',newVal:rq.managerApprovedBy||'(skipped — submitted by manager)'},
       {field:'submittedBy',label:'Submitted by',oldVal:'',newVal:`${rq.submittedBy} (${rq.submittedId})`}
     ]);
     apiPost({ action:'upsert', record, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
@@ -4728,6 +4895,7 @@ function approveRequest(rqId) {
     persistDrivers();
     logChange('driver','Added',record.driver_id||record.name,record.name,[
       {field:'ALL',label:'Approved by',oldVal:'Pending Approval',newVal:`${currentUser.name} · ${now}`},
+      {field:'managerApprovedBy',label:'Manager approval',oldVal:'',newVal:rq.managerApprovedBy||'(skipped — submitted by manager)'},
       {field:'submittedBy',label:'Submitted by',oldVal:'',newVal:`${rq.submittedBy} (${rq.submittedId})`}
     ]);
     apiPost({ action:'upsert_driver', record });
@@ -4752,15 +4920,20 @@ function approveRequest(rqId) {
 }
 
 function rejectRequest(rqId) {
-  const reason   = document.getElementById('reject-reason-' + rqId)?.value?.trim() || '';
   const requests = getRequests();
   const rq       = requests.find(r => r.id === rqId);
   if (!rq) return;
+  // Manager can only reject at the manager stage; admin can reject at either stage.
+  if (currentUser?.role === 'manager' && rq.status !== 'pending_manager') return;
+  if (!['admin','manager'].includes(currentUser?.role)) return;
+  const reason   = document.getElementById('reject-reason-' + rqId)?.value?.trim() || '';
   if (!confirm(`Reject this ${rq.type} request?`)) return;
   // Remove from pending list, archive in change log
   const now2 = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
-  const rqLabel2 = rq.type === 'fleet' ? (rq.data?.plate||'') : (rq.data?.name||'');
-  logChange(rq.type, 'Rejected', rqLabel2, rqLabel2, [
+  const isDelete = rq.type === 'delete_fleet' || rq.type === 'delete_driver';
+  const trackerForLog = isDelete ? rq.type.replace('delete_','') : rq.type;
+  const rqLabel2 = isDelete ? (rq.data?.label||'') : (rq.type === 'fleet' ? (rq.data?.plate||'') : (rq.data?.name||''));
+  logChange(trackerForLog, 'Rejected', rqLabel2, rqLabel2, [
     {field:'ALL', label:'Rejected by', oldVal:'Pending Approval', newVal:`${currentUser.name} · ${now2}`},
     {field:'reason', label:'Reason', oldVal:'', newVal: reason||'No reason given'},
     {field:'submittedBy', label:'Submitted by', oldVal:'', newVal:`${rq.submittedBy} (${rq.submittedId})`}
@@ -4768,7 +4941,7 @@ function rejectRequest(rqId) {
   const updatedReq = requests.filter(r => r.id !== rqId);
   saveRequests(updatedReq);
   // Notify the submitter
-  const rqLabel = rq.type === 'fleet' ? `vehicle ${rq.data?.plate||''}` : `driver ${rq.data?.name||''}`;
+  const rqLabel = isDelete ? rq.data?.label||'' : (rq.type === 'fleet' ? `vehicle ${rq.data?.plate||''}` : `driver ${rq.data?.name||''}`);
   pushNotification(
     rq.submittedId,
     '❌ Request Rejected',
@@ -4857,7 +5030,7 @@ function previewPermitImport(input) {
     const lines = e.target.result.split(/\r?\n/).filter(Boolean);
     if (lines.length < 2) return;
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
-    const required = ['ref','permitno','startdate','enddate'];
+    const required = ['ref','permitno']; // Only the match key is required — other fields are optional so partial bulk-updates work
     const missing = required.filter(r => !headers.some(h => h.replace(/[_ ]/g,'') === r.replace(/[_ ]/g,'')));
     if (missing.length) {
       document.getElementById('permitImportErrors').textContent = '⚠ Missing required columns: ' + missing.join(', ');
@@ -4877,9 +5050,18 @@ function previewPermitImport(input) {
         endDate: rec.enddate || rec['end date'] || rec['end_date'] || '',
         notes: rec.notes || '',
       };
-    }).filter(r => r.ref && r.permitNo && r.endDate);
+    }).filter(r => r.ref && r.permitNo);
+    // New permits (no existing ref+permitNo match) still need an End Date to be meaningful —
+    // existing permits being partially updated do not.
+    const existingForCheck = getPermits(_permitImportType);
+    const missingEndDate = _permitImportParsed.filter(r => {
+      const isExisting = existingForCheck.some(p => p.ref === r.ref && p.permitNo === r.permitNo);
+      return !isExisting && !r.endDate;
+    }).length;
     document.getElementById('permitImportCount').textContent = `✅ ${_permitImportParsed.length} permit(s) ready to import`;
-    document.getElementById('permitImportErrors').textContent = '';
+    document.getElementById('permitImportErrors').textContent = missingEndDate
+      ? `⚠ ${missingEndDate} new permit(s) have no End Date — they'll still import, but add one soon.`
+      : '';
     document.getElementById('permitImportPreview').style.display = 'block';
     document.getElementById('permitImportZone').style.borderColor = _permitImportParsed.length ? '#22c55e' : '#f87171';
     const btn = document.getElementById('permitImportBtn');
@@ -4894,9 +5076,17 @@ function confirmPermitImport() {
   let added = 0, updated = 0;
   _permitImportParsed.forEach(rec => {
     const idx = existing.findIndex(p => p.ref === rec.ref && p.permitNo === rec.permitNo);
-    const entry = { ...rec, id: idx >= 0 ? existing[idx].id : 'p_' + Date.now() + Math.random(), createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) };
-    if (idx >= 0) { existing[idx] = { ...existing[idx], ...entry }; updated++; }
-    else { existing.push(entry); added++; }
+    if (idx >= 0) {
+      // Only update fields with an actual (non-blank) value — a blank cell means "no change",
+      // never overwrite existing data with an empty string.
+      const update = {};
+      Object.keys(rec).forEach(k => { if (rec[k] !== undefined && String(rec[k]).trim() !== '') update[k] = rec[k]; });
+      existing[idx] = { ...existing[idx], ...update };
+      updated++;
+    } else {
+      existing.push({ ...rec, id: 'p_' + Date.now() + Math.random(), createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) });
+      added++;
+    }
   });
   savePermits(_permitImportType, existing);
   closeModal('permitImportModal');
@@ -5437,7 +5627,7 @@ function fmtDisplayDate(val) {
 // ═══════════════════════════════════════════
 function switchTab(tab) {
   // Block non-admins from accessing Access Control only (permits now open to all)
-  if (tab === 'access' && currentUser?.role !== 'admin') return;
+  if (tab === 'access' && !['admin','manager'].includes(currentUser?.role)) return;
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const pg = document.getElementById('page-'+tab);
@@ -5446,10 +5636,6 @@ function switchTab(tab) {
   if (tab === 'permits') { renderPermits(); }
   if (tab === 'fleet')   { renderFleet(); }
   if (tab === 'drivers') { renderDrivers(); }
-  if (tab === 'dispatch') {
-    const f = document.getElementById('dispatchFrame');
-    if (f && !f.src) f.src = f.dataset.src;
-  }
 }
 
 // ═══════════════════════════════════════════
