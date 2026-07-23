@@ -855,7 +855,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fg"><label>Plate Number *</label><div class="autocomplete-wrap"><input type="text" id="v-plate" placeholder="e.g. DXB-11234" oninput="acPlate(this)"><div class="autocomplete-drop" id="ac-plate"></div></div>
           <div id="v-uid-display" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
         </div>
-        <div class="fg"><label>Status *</label><select id="v-status"><option>Active</option><option>Under Maintenance</option><option>Total Loss</option><option>De-fleet</option><option>Idle</option><option>Adhoc</option><option>Accident</option><option>Off Hire</option><option>Replacement Veh Received</option></select></div>
+        <div class="fg"><label>Status *</label><select id="v-status" onchange="checkStatusReasonRequired(this.value)"><option>Active</option><option>Under Maintenance</option><option>Total Loss</option><option>De-fleet</option><option>Idle</option><option>Adhoc</option><option>Accident</option><option>Off Hire</option><option>Replacement Veh Received</option><option>Permanent Replacement Veh Received</option></select></div>
         <div class="fg"><label>Plate Code <span style="color:var(--pink)">*</span></label><input type="text" id="v-reg" placeholder="e.g. Dubai A, Abu Dhabi B…"></div>
         <div class="fg"><label>Make / Model <span style="color:var(--pink)">*</span></label><select id="v-make">
           <option value="">— Select Make —</option>
@@ -1255,6 +1255,30 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
   </div>
 </div>
 
+<!-- STATUS CHANGE REASON MODAL -->
+<div class="modal-ov" id="statusReasonModal">
+  <div class="modal" style="min-width:380px;max-width:440px;">
+    <div class="modal-hd" style="background:#fef3c7;border-bottom:1px solid #fde68a;">
+      <h2 style="color:#92400e;">📝 Reason Required</h2>
+      <button class="m-close" onclick="cancelStatusReason()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#374151;margin-bottom:12px;line-height:1.5;">
+        Setting status to <strong id="statusReasonStatusLabel"></strong> requires a reason. This change will be submitted for approval and won't take effect until approved.
+      </p>
+      <div class="fg">
+        <label>Remarks <span style="color:var(--pink)">*</span></label>
+        <textarea id="statusReasonText" rows="3" placeholder="Why is this vehicle's status changing?"></textarea>
+        <div id="statusReasonError" style="color:var(--red);font-size:11px;margin-top:4px;display:none;">Remarks are required.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cancelStatusReason()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmStatusReason()">Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- USER MODAL -->
 <div class="modal-ov" id="userModal">
   <div class="modal" style="min-width:420px;">
@@ -1303,6 +1327,8 @@ function loadPersistedData() {
   if (d) { try { drivers  = JSON.parse(d); } catch(e) {} }
 }
 let editingVehiclePlate = null;
+let _vOriginalStatus = '';
+let _pendingStatusChange = null; // { status, reason } once confirmed via the reason modal
 let editingDriverId = null;
 let editingUserId = null;
 let fleetEditing = false;
@@ -2595,7 +2621,8 @@ document.addEventListener('click', e => {
   }
 });
 
-const statusBadge = { Active:'b-active', Deployed:'b-deployed', 'Under Maintenance':'b-maint', 'Total Loss':'b-loss', 'De-fleet':'b-defleet', Idle:'b-ops', Adhoc:'b-annualleave', Accident:'b-termination', 'Off Hire':'b-offhire', 'Replacement Veh Received':'b-replacement' };
+const statusBadge = { Active:'b-active', Deployed:'b-deployed', 'Under Maintenance':'b-maint', 'Total Loss':'b-loss', 'De-fleet':'b-defleet', Idle:'b-ops', Adhoc:'b-annualleave', Accident:'b-termination', 'Off Hire':'b-offhire', 'Replacement Veh Received':'b-replacement', 'Permanent Replacement Veh Received':'b-replacement' };
+const STATUS_NEEDS_REASON = ['Off Hire', 'De-fleet', 'Permanent Replacement Veh Received'];
 const utilBadge   = { Passenger:'b-active', Operations:'b-deployed' };
 
 // ── Vehicle makes & default categories ──────────────────────
@@ -3098,6 +3125,8 @@ function openVehicleModal(plate) {
   editingVehiclePlate = plate || null;
   vFields.forEach(f => { const el=document.getElementById('v-'+f); if(el) el.value=''; });
   document.getElementById('v-status').value = 'Active';
+  _vOriginalStatus = 'Active';
+  _pendingStatusChange = null;
   const uidDisplay = document.getElementById('v-uid-display');
   if (uidDisplay) uidDisplay.textContent = plate ? '' : 'Vehicle ID will be auto-generated on save';
   // Always hide verify box on open
@@ -3131,6 +3160,7 @@ function openVehicleModal(plate) {
       }
     });
     document.getElementById('vModalTitle').textContent = 'Edit Vehicle — ' + plate;
+    _vOriginalStatus = document.getElementById('v-status').value;
   }
 
   const isAdmin = currentUser?.role === 'admin';
@@ -3337,6 +3367,37 @@ async function saveVehicle() {
   }
   record.id = record.id || 'v_' + Date.now();
 
+  // Status change to a "needs reason" status (Off Hire / De-fleet / Permanent Replacement Veh Received):
+  // non-admins can't apply it directly — it goes through the same two-stage approval as everything else.
+  // The rest of the form's edits still save immediately; only the status itself stays at its old value
+  // until approved.
+  let statusChangeSubmitted = false;
+  if (!isAdmin && _pendingStatusChange && editingVehiclePlate && record.status === _pendingStatusChange.status) {
+    record.status = _vOriginalStatus; // hold the old status until approved
+    const initialStatus = currentUser?.role === 'manager' ? 'pending_admin' : 'pending_manager';
+    const requests = getRequests();
+    requests.unshift({
+      id: 'rq_' + Date.now(), type: 'status_fleet', status: initialStatus,
+      data: { plate: editingVehiclePlate, newStatus: _pendingStatusChange.status, oldStatus: _vOriginalStatus, reason: _pendingStatusChange.reason },
+      submittedBy: currentUser?.name||'—', submittedId: currentUser?.id||'—',
+      submittedAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}),
+      reviewedBy:'', reviewedAt:'', rejectReason:'',
+    });
+    saveRequests(requests);
+    updateApprovalBadge();
+    const label = `vehicle ${editingVehiclePlate} → ${_pendingStatusChange.status}`;
+    if (initialStatus === 'pending_manager') {
+      notifyByRole('manager', '📝 Status Change for Review', `${currentUser.name} requested ${label} (needs manager review).`, 'info');
+    } else {
+      notifyByRole('admin', '📝 Ready for Final Approval', `${currentUser.name} (manager) requested ${label}, awaiting your final approval.`, 'info');
+    }
+    statusChangeSubmitted = true;
+  } else if (isAdmin && _pendingStatusChange && editingVehiclePlate && record.status === _pendingStatusChange.status) {
+    // Admin is the final authority — apply immediately, but log the reason for the record
+    record.remarks = record.remarks ? `${record.remarks}\n[${_pendingStatusChange.status}] ${_pendingStatusChange.reason}` : `[${_pendingStatusChange.status}] ${_pendingStatusChange.reason}`;
+  }
+  _pendingStatusChange = null;
+
   // Collect custom column values
   getCustomCols('fleet').forEach(c => {
     const el = document.getElementById('vcf_' + c.key);
@@ -3359,6 +3420,7 @@ async function saveVehicle() {
   await apiPost({ action:'upsert', record, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
   closeModal('vehicleModal');
   renderAll();
+  if (statusChangeSubmitted) showSuccessToast('✅ Saved — status change submitted for approval', 4000);
 }
 
 let _pendingDelete = null;
@@ -3996,6 +4058,7 @@ function getAllFieldConfigs() {
       fleet:  getRemovedCustomCols('fleet'),
       driver: getRemovedCustomCols('driver'),
     },
+    plateSeq: getPlateSeq(),
   };
 }
 
@@ -4029,6 +4092,16 @@ async function syncFieldConfigFromSheet() {
         ['fleet','driver'].forEach(t => {
           if (j.data.removedCustomCols[t]) localStorage.setItem('agfsRemovedCustomCols_' + t, JSON.stringify(j.data.removedCustomCols[t]));
         });
+      }
+      if (j.data.plateSeq) {
+        // Merge rather than overwrite — always keep the higher count per plate so no device
+        // can ever generate a duplicate/lower Vehicle ID after pulling.
+        const local = getPlateSeq();
+        const merged = { ...local };
+        Object.keys(j.data.plateSeq).forEach(p => {
+          merged[p] = Math.max(local[p] || 0, j.data.plateSeq[p] || 0);
+        });
+        localStorage.setItem('agfsPlateSeq', JSON.stringify(merged));
       }
       applyFieldConfigs();
       if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
@@ -4638,11 +4711,45 @@ function openRequestModal(type) {
 
 // Generates a stable, human-readable unique ID per vehicle: PLATE-0001.
 // Tracks a per-plate sequence so re-adding a previously-deleted plate still gets a fresh unique ID.
+function getPlateSeq() {
+  try { return JSON.parse(localStorage.getItem('agfsPlateSeq') || '{}'); } catch(e) { return {}; }
+}
+function savePlateSeq(seqMap) {
+  localStorage.setItem('agfsPlateSeq', JSON.stringify(seqMap));
+  syncFieldConfigToSheet(); // push so every device shares the same counter
+}
+function checkStatusReasonRequired(newStatus) {
+  if (STATUS_NEEDS_REASON.includes(newStatus) && newStatus !== _vOriginalStatus) {
+    document.getElementById('statusReasonStatusLabel').textContent = newStatus;
+    document.getElementById('statusReasonText').value = '';
+    document.getElementById('statusReasonError').style.display = 'none';
+    document.getElementById('statusReasonModal').classList.add('open');
+  } else {
+    _pendingStatusChange = null;
+  }
+}
+
+function cancelStatusReason() {
+  document.getElementById('v-status').value = _vOriginalStatus;
+  _pendingStatusChange = null;
+  closeModal('statusReasonModal');
+}
+
+function confirmStatusReason() {
+  const reason = document.getElementById('statusReasonText').value.trim();
+  if (!reason) {
+    document.getElementById('statusReasonError').style.display = 'block';
+    return;
+  }
+  _pendingStatusChange = { status: document.getElementById('v-status').value, reason };
+  closeModal('statusReasonModal');
+}
+
 function generateVehicleUID(plate) {
-  const seqMap = JSON.parse(localStorage.getItem('agfsPlateSeq') || '{}');
+  const seqMap = getPlateSeq();
   const n = (seqMap[plate] || 0) + 1;
   seqMap[plate] = n;
-  localStorage.setItem('agfsPlateSeq', JSON.stringify(seqMap));
+  savePlateSeq(seqMap);
   return `${plate}-${String(n).padStart(4,'0')}`;
 }
 
@@ -4746,10 +4853,15 @@ function renderApprovals() {
   el.innerHTML = requests.map(r => {
     const d = r.data || {};
     const isDelete = r.type === 'delete_fleet' || r.type === 'delete_driver';
+    const isStatusChange = r.type === 'status_fleet';
     let summary, typeBadge, details = '';
     if (isDelete) {
       typeBadge = `<span class="badge b-termination" style="margin-right:8px;">🗑 Remove ${r.type==='delete_fleet'?'Vehicle':'Driver'}</span>`;
       summary = `<strong>${d.label||'—'}</strong>`;
+    } else if (isStatusChange) {
+      typeBadge = `<span class="badge b-maint" style="margin-right:8px;">🔄 Status Change</span>`;
+      summary = `Plate: <strong>${d.plate||'—'}</strong> · ${d.oldStatus||'—'} → <strong>${d.newStatus||'—'}</strong>`;
+      details = `<div style="grid-column:1/-1;font-size:11px;color:#475569;"><span style="color:#94a3b8;">Reason</span> <strong>${d.reason||'—'}</strong></div>`;
     } else {
       typeBadge = `<span class="badge ${r.type==='fleet'?'b-deployed':'b-active'}" style="margin-right:8px;">${r.type==='fleet'?'🚗 Fleet':'👤 Driver'}</span>`;
       summary = r.type === 'fleet'
@@ -4771,7 +4883,7 @@ function renderApprovals() {
           <button class="btn btn-danger btn-sm" data-rqid="${r.id}" onclick="rejectRequest(this.dataset.rqid)">✕ Reject</button>
         </div>`;
     } else if (role === 'admin' && r.status === 'pending_admin') {
-      actions = `<button class="btn btn-green btn-sm" data-rqid="${r.id}" onclick="approveRequest(this.dataset.rqid)">✅ ${isDelete ? 'Approve Removal' : 'Approve & Add'}</button>
+      actions = `<button class="btn btn-green btn-sm" data-rqid="${r.id}" onclick="approveRequest(this.dataset.rqid)">✅ ${isDelete ? 'Approve Removal' : isStatusChange ? 'Approve Status Change' : 'Approve & Add'}</button>
         <div style="display:flex;gap:6px;align-items:center;margin-left:auto;">
           <input type="text" placeholder="Reason for rejection (optional)" id="reject-reason-${r.id}" style="padding:4px 8px;border:1px solid var(--border);border-radius:5px;font-size:11px;width:220px;">
           <button class="btn btn-danger btn-sm" data-rqid="${r.id}" onclick="rejectRequest(this.dataset.rqid)">✕ Reject</button>
@@ -4785,7 +4897,7 @@ function renderApprovals() {
         </div>`;
     }
 
-    return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${isDelete?'var(--red)':'var(--pink)'};">
+    return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${isDelete?'var(--red)':isStatusChange?'#f59e0b':'var(--pink)'};">
       <div class="card-head" style="padding:10px 14px;flex-wrap:wrap;">
         ${typeBadge}
         <span style="font-size:12px;">${summary}</span>
@@ -4801,6 +4913,13 @@ function renderApprovals() {
   }).join('');
 }
 
+function requestLabel(rq) {
+  const d = rq.data || {};
+  if (rq.type === 'delete_fleet' || rq.type === 'delete_driver') return d.label || '';
+  if (rq.type === 'status_fleet') return `vehicle ${d.plate||''} status → ${d.newStatus||''}`;
+  return rq.type === 'fleet' ? `vehicle ${d.plate||''}` : `driver ${d.name||''}`;
+}
+
 function managerApproveRequest(rqId) {
   if (currentUser?.role !== 'manager') return;
   const requests = getRequests();
@@ -4811,7 +4930,7 @@ function managerApproveRequest(rqId) {
   rq.managerApprovedBy = currentUser.name;
   rq.managerApprovedAt = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
   saveRequests(requests);
-  const label = rq.type === 'fleet' ? `vehicle ${rq.data?.plate||''}` : `driver ${rq.data?.name||''}`;
+  const label = requestLabel(rq);
   notifyByRole('admin', '📝 Ready for Final Approval', `${rq.submittedBy}'s ${label} request was approved by manager ${currentUser.name} and needs your final approval.`, 'info');
   pushNotification(rq.submittedId, '👍 Manager Approved', `Your ${label} request was approved by ${currentUser.name} and is now awaiting final admin approval.`, 'info');
   updateApprovalBadge();
@@ -4827,6 +4946,32 @@ function approveRequest(rqId) {
   if (rq.status !== 'pending_admin') { alert('This request still needs manager review first.'); return; }
   const d = rq.data;
   const now = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
+
+  // ── Status change requests (Off Hire / De-fleet / Permanent Replacement Veh Received) ──
+  if (rq.type === 'status_fleet') {
+    const v = vehicles.find(x => String(x.plate) === String(d.plate));
+    if (v) {
+      const oldStatus = v.status;
+      v.status = d.newStatus;
+      v.remarks = v.remarks ? `${v.remarks}\n[${d.newStatus}] ${d.reason}` : `[${d.newStatus}] ${d.reason}`;
+      persistVehicles();
+      logChange('fleet','Updated',v.plate,`${v.plate} — ${v.make||''}`,[
+        {field:'status', label:'Status', oldVal:oldStatus, newVal:d.newStatus},
+        {field:'reason', label:'Reason', oldVal:'', newVal:d.reason},
+        {field:'ALL', label:'Status change approved by', oldVal:'Pending Approval', newVal:`${currentUser.name} · ${now}`},
+        {field:'requestedBy', label:'Requested by', oldVal:'', newVal:`${rq.submittedBy} (${rq.submittedId})`}
+      ]);
+      apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+      renderFleet();
+    }
+    const updatedRequests = requests.filter(r => r.id !== rqId);
+    saveRequests(updatedRequests);
+    pushNotification(rq.submittedId, '✅ Status Change Approved', `Your status change for ${d.plate} → ${d.newStatus} has been approved by ${currentUser.name}.`, 'success');
+    updateApprovalBadge();
+    renderAll();
+    showSuccessToast(`✅ ${d.plate} status updated to ${d.newStatus}`, 3500);
+    return;
+  }
 
   // ── Deletion requests (manager-initiated) ──────────────────
   if (rq.type === 'delete_fleet' || rq.type === 'delete_driver') {
@@ -4931,8 +5076,8 @@ function rejectRequest(rqId) {
   // Remove from pending list, archive in change log
   const now2 = new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'});
   const isDelete = rq.type === 'delete_fleet' || rq.type === 'delete_driver';
-  const trackerForLog = isDelete ? rq.type.replace('delete_','') : rq.type;
-  const rqLabel2 = isDelete ? (rq.data?.label||'') : (rq.type === 'fleet' ? (rq.data?.plate||'') : (rq.data?.name||''));
+  const trackerForLog = isDelete ? rq.type.replace('delete_','') : rq.type === 'status_fleet' ? 'fleet' : rq.type;
+  const rqLabel2 = rq.type === 'status_fleet' ? (rq.data?.plate||'') : isDelete ? (rq.data?.label||'') : (rq.type === 'fleet' ? (rq.data?.plate||'') : (rq.data?.name||''));
   logChange(trackerForLog, 'Rejected', rqLabel2, rqLabel2, [
     {field:'ALL', label:'Rejected by', oldVal:'Pending Approval', newVal:`${currentUser.name} · ${now2}`},
     {field:'reason', label:'Reason', oldVal:'', newVal: reason||'No reason given'},
@@ -4941,7 +5086,7 @@ function rejectRequest(rqId) {
   const updatedReq = requests.filter(r => r.id !== rqId);
   saveRequests(updatedReq);
   // Notify the submitter
-  const rqLabel = isDelete ? rq.data?.label||'' : (rq.type === 'fleet' ? `vehicle ${rq.data?.plate||''}` : `driver ${rq.data?.name||''}`);
+  const rqLabel = requestLabel(rq);
   pushNotification(
     rq.submittedId,
     '❌ Request Rejected',
