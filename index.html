@@ -581,6 +581,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <button class="btn btn-ghost btn-sm" onclick="openImportModal('fleet')">⬆ Import CSV</button>
         <button class="btn btn-primary btn-sm" onclick="exportFleetColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFleetCSV()">⬇ Export CSV</button>
+        <button class="btn btn-ghost btn-sm admin-only" onclick="backfillVehicleIDs()" title="Assign AG#### IDs to any vehicle that doesn't have one yet">🆔 Backfill Vehicle IDs</button>
         <div class="col-toggle-wrap">
           <button class="btn btn-ghost btn-sm" onclick="toggleColMenu('fleet')" style="gap:5px;">⊞ Columns ▾</button>
           <div class="col-toggle-drop" id="fleetColDrop">
@@ -3406,11 +3407,15 @@ async function saveVehicle() {
     const el = document.getElementById('vcf_' + c.key);
     if (el) record[c.key] = el.value.trim();
   });
-  const idx = vehicles.findIndex(v=>v.plate===record.plate);
+  // Match by the plate this record was originally opened under, so correcting/retyping the
+  // Plate field during an edit still updates the SAME vehicle instead of creating a duplicate.
+  const idx = editingVehiclePlate
+    ? vehicles.findIndex(v => v.plate === editingVehiclePlate)
+    : vehicles.findIndex(v => v.plate === record.plate);
   const isUpdate = idx >= 0;
   const oldRec = isUpdate ? {...vehicles[idx]} : {};
   if (isUpdate) vehicles[idx]={...vehicles[idx],...record};
-  else { record.vehicle_uid = generateVehicleUID(record.plate); vehicles.push(record); }
+  else { record.vehicle_uid = generateVehicleUID(); vehicles.push(record); }
   persistVehicles();
 
   // Log field-level changes locally
@@ -4061,7 +4066,7 @@ function getAllFieldConfigs() {
       fleet:  getRemovedCustomCols('fleet'),
       driver: getRemovedCustomCols('driver'),
     },
-    plateSeq: getPlateSeq(),
+    vehicleIdCounter: getVehicleIdCounter(),
   };
 }
 
@@ -4096,15 +4101,10 @@ async function syncFieldConfigFromSheet() {
           if (j.data.removedCustomCols[t]) localStorage.setItem('agfsRemovedCustomCols_' + t, JSON.stringify(j.data.removedCustomCols[t]));
         });
       }
-      if (j.data.plateSeq) {
-        // Merge rather than overwrite — always keep the higher count per plate so no device
-        // can ever generate a duplicate/lower Vehicle ID after pulling.
-        const local = getPlateSeq();
-        const merged = { ...local };
-        Object.keys(j.data.plateSeq).forEach(p => {
-          merged[p] = Math.max(local[p] || 0, j.data.plateSeq[p] || 0);
-        });
-        localStorage.setItem('agfsPlateSeq', JSON.stringify(merged));
+      if (typeof j.data.vehicleIdCounter === 'number') {
+        // Always keep the higher value — no device can ever hand out a duplicate/lower Vehicle ID after pulling.
+        const local = getVehicleIdCounter();
+        localStorage.setItem('agfsVehicleIdCounter', String(Math.max(local, j.data.vehicleIdCounter)));
       }
       applyFieldConfigs();
       if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
@@ -4714,13 +4714,6 @@ function openRequestModal(type) {
 
 // Generates a stable, human-readable unique ID per vehicle: PLATE-0001.
 // Tracks a per-plate sequence so re-adding a previously-deleted plate still gets a fresh unique ID.
-function getPlateSeq() {
-  try { return JSON.parse(localStorage.getItem('agfsPlateSeq') || '{}'); } catch(e) { return {}; }
-}
-function savePlateSeq(seqMap) {
-  localStorage.setItem('agfsPlateSeq', JSON.stringify(seqMap));
-  syncFieldConfigToSheet(); // push so every device shares the same counter
-}
 function checkStatusReasonRequired(newStatus) {
   if (STATUS_NEEDS_REASON.includes(newStatus) && newStatus !== _vOriginalStatus) {
     document.getElementById('statusReasonStatusLabel').textContent = newStatus;
@@ -4748,12 +4741,35 @@ function confirmStatusReason() {
   closeModal('statusReasonModal');
 }
 
-function generateVehicleUID(plate) {
-  const seqMap = getPlateSeq();
-  const n = (seqMap[plate] || 0) + 1;
-  seqMap[plate] = n;
-  savePlateSeq(seqMap);
-  return `${plate}-${String(n).padStart(4,'0')}`;
+function getVehicleIdCounter() {
+  const n = parseInt(localStorage.getItem('agfsVehicleIdCounter') || '0', 10);
+  return isNaN(n) ? 0 : n;
+}
+function saveVehicleIdCounter(n) {
+  localStorage.setItem('agfsVehicleIdCounter', String(n));
+  syncFieldConfigToSheet(); // push so every device shares the same counter
+}
+function generateVehicleUID() {
+  const n = getVehicleIdCounter() + 1;
+  saveVehicleIdCounter(n);
+  return 'AG' + String(n).padStart(4, '0');
+}
+
+// One-time (repeatable/safe) backfill: assigns AG#### IDs to any existing vehicle that doesn't have one yet.
+// Order is by plate, alphabetically, for a stable and predictable assignment.
+function backfillVehicleIDs() {
+  if (currentUser?.role !== 'admin') return;
+  const missing = vehicles.filter(v => !v.vehicle_uid).sort((a,b) => String(a.plate).localeCompare(String(b.plate)));
+  if (!missing.length) { alert('Every vehicle already has a Vehicle ID.'); return; }
+  if (!confirm(`Assign Vehicle IDs to ${missing.length} vehicle(s) that don't have one yet?\n\nIDs will be assigned in plate order, starting from AG${String(getVehicleIdCounter()+1).padStart(4,'0')}.`)) return;
+  missing.forEach(v => { v.vehicle_uid = generateVehicleUID(); });
+  persistVehicles();
+  missing.forEach(v => apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } }));
+  logChange('fleet','Updated','BULK',`Backfilled Vehicle IDs for ${missing.length} vehicles`,[
+    {field:'vehicle_uid', label:'Vehicle ID Backfill', oldVal:'—', newVal:`${missing.length} vehicles assigned AG#### IDs`}
+  ]);
+  renderFleet();
+  showSuccessToast(`✅ Assigned Vehicle IDs to ${missing.length} vehicle(s)`, 4000);
 }
 
 function notifyByRole(role, title, message, type) {
@@ -5020,7 +5036,7 @@ function approveRequest(rqId) {
       contract:d.contract||'', phone:d.phone||'', region:d.region,
       job_code:d.job_code||'', gps_rfid:d.gps_rfid||'', utilization:d.utilization||'',
       status:d.status||'Active', remarks:d.remarks||d.rqNotes||'',
-      vehicle_uid: generateVehicleUID(d.plate),
+      vehicle_uid: generateVehicleUID(),
     };
     vehicles.push(record);
     persistVehicles();
