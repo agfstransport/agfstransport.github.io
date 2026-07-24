@@ -603,6 +603,8 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>Accident</option>
           <option>Off Hire</option>
           <option>Replacement Veh Received</option>
+          <option>Permanent Replacement Veh Received</option>
+          <option value="__unset__">— No Status Set —</option>
         </select>
         <select id="fleetCat" onchange="renderFleet()"><option value="">All Categories</option></select>
         <select id="fleetOwn" onchange="renderFleet()"><option value="">Own / Rental</option></select>
@@ -1883,7 +1885,7 @@ function renderDashboard() {
   if (emptyEl) emptyEl.style.display = anyAlert ? 'none' : 'block';
 
   // ── Fleet by status bars ────────────────────────────────────
-  const statusColors = { Active:'#22c55e', Deployed:'#7c3aed', 'Under Maintenance':'#f59e0b', 'Total Loss':'#ef4444', 'De-fleet':'#a855f7', Idle:'#64748b', Adhoc:'#0891b2', Accident:'#ec4899' };
+  const statusColors = { Active:'#22c55e', Deployed:'#7c3aed', 'Under Maintenance':'#f59e0b', 'Total Loss':'#ef4444', 'De-fleet':'#a855f7', Idle:'#64748b', Adhoc:'#0891b2', Accident:'#ec4899', 'Off Hire':'#f97316', 'Replacement Veh Received':'#14b8a6', 'Permanent Replacement Veh Received':'#0d9488', Unset:'#cbd5e1' };
   const statGrp = grp(filtV, 'status');
   const statEntries = Object.entries(statGrp).sort((a,b)=>b[1]-a[1]);
   const statMax = Math.max(...statEntries.map(([,v])=>v), 1);
@@ -2673,7 +2675,8 @@ function getFilteredFleet() {
   const util = document.getElementById('fleetUtil')?.value || '';
   const regExpCols = (dashboardQuickFilter?.scope === 'fleet-reg') ? getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label)) : [];
   return vehicles.filter(v => {
-    if (st   && v.status      !== st)   return false;
+    if (st === '__unset__' && v.status) return false;
+    if (st && st !== '__unset__' && v.status !== st) return false;
     if (cat  && v.category    !== cat)  return false;
     if (own  && v.own         !== own)  return false;
     if (reg  && v.region      !== reg)  return false;
@@ -2822,7 +2825,7 @@ function fleetFilter(status) {
 function dashFleetStatus(status) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetStatus').value = status;
+  document.getElementById('fleetStatus').value = status === 'Unset' ? '__unset__' : status;
   fleetPage = 1; renderFleet();
 }
 function dashFleetCategory(cat) {
