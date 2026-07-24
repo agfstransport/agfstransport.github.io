@@ -1685,7 +1685,14 @@ async function loadData() {
 // that could fall out of sync with however the backend actually names sheet columns.
 function autoDetectCustomCols(tracker, records, knownKeys) {
   if (!records || !records.length) return;
-  const existing = getCustomCols(tracker);
+  let existing = getCustomCols(tracker);
+  // Self-heal: if a key that used to be a custom column is now a proper base field (this happened
+  // with vehicle_uid), drop the stale custom entry so it doesn't show as a duplicate column.
+  const staleOverlap = existing.filter(c => knownKeys.has(c.key));
+  if (staleOverlap.length) {
+    existing = existing.filter(c => !knownKeys.has(c.key));
+    saveCustomCols(tracker, existing);
+  }
   const existingKeys = new Set(existing.map(c => c.key));
   const removedKeys = new Set(getRemovedCustomCols(tracker).map(c => c.key)); // don't resurrect a column an admin removed
   const found = new Set();
@@ -2416,9 +2423,10 @@ function saveRemovedBaseCols(tracker, keys) {
   syncFieldConfigToSheet(); // push so all users/devices see the removed/restored column
 }
 function getAllCols(tracker) {
-  const removed = getRemovedBaseCols(tracker);
-  const base   = (tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS).filter(c => !removed.includes(c.key));
-  const custom = getCustomCols(tracker).map(c => ({ key:c.key, label:c.label, custom:true }));
+  const removed  = getRemovedBaseCols(tracker);
+  const base     = (tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS).filter(c => !removed.includes(c.key));
+  const baseKeys = new Set(base.map(c => c.key));
+  const custom   = getCustomCols(tracker).filter(c => !baseKeys.has(c.key)).map(c => ({ key:c.key, label:c.label, custom:true }));
   return [...base, ...custom];
 }
 
