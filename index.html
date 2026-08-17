@@ -192,6 +192,10 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pi
 .no-data{text-align:center;padding:40px;color:#94a3b8;font-size:13px;}
 #successToast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:13px 24px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,0.25);z-index:9999;display:none;align-items:center;gap:10px;max-width:90vw;border-left:4px solid var(--pink);}
 #successToast.show{display:flex;}
+#savingIndicator{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-60px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:10000;display:flex;align-items:center;gap:8px;transition:transform .2s ease;}
+#savingIndicator.show{transform:translateX(-50%) translateY(0);}
+#savingIndicator .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:savingspin .7s linear infinite;}
+@keyframes savingspin{to{transform:rotate(360deg);}}
 
 /* ─── MODAL ─── */
 .modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;align-items:center;justify-content:center;padding:16px;}
@@ -1467,7 +1471,7 @@ function saveProfile() {
   updatePermitCount();
   updateApprovalBadge();
   updateNotifBadge();
-  alert('Profile updated successfully.');
+  showSuccessToast('✅ Profile updated', 3000);
 }
 
 function openPasswordModal() {
@@ -1711,14 +1715,25 @@ function autoDetectCustomCols(tracker, records, knownKeys) {
   saveCustomCols(tracker, [...existing, ...newCols]);
 }
 
+let _apiPostInFlight = 0;
+function showSavingIndicator() {
+  _apiPostInFlight++;
+  document.getElementById('savingIndicator')?.classList.add('show');
+}
+function hideSavingIndicator() {
+  _apiPostInFlight = Math.max(0, _apiPostInFlight - 1);
+  if (_apiPostInFlight === 0) document.getElementById('savingIndicator')?.classList.remove('show');
+}
 async function apiPost(body) {
   if (!GAS_URL) return null;
+  showSavingIndicator();
   try {
     // Use text/plain to avoid CORS preflight (Apps Script doesn't handle OPTIONS preflight properly).
     // Apps Script's doPost still parses this fine via JSON.parse(e.postData.contents).
     const r = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
     return await r.json();
   } catch(e) { console.error(e); return null; }
+  finally { hideSavingIndicator(); }
 }
 
 // ═══════════════════════════════════════════
@@ -3437,6 +3452,7 @@ async function saveVehicle() {
   closeModal('vehicleModal');
   renderAll();
   if (statusChangeSubmitted) showSuccessToast('✅ Saved — status change submitted for approval', 4000);
+  else showSuccessToast(isUpdate ? '✅ Vehicle updated' : '✅ Vehicle added', 3000);
 }
 
 let _pendingDelete = null;
@@ -3514,6 +3530,7 @@ async function confirmDelete() {
     updateCounts();
     renderDashboard();
     apiPost({ action:'delete', plate:id, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    showSuccessToast('✅ Vehicle deleted', 3000);
 
   } else if (type === 'driver') {
     const before = drivers.length;
@@ -3526,6 +3543,7 @@ async function confirmDelete() {
     updateCounts();
     renderDashboard();
     apiPost({ action:'delete_driver', driver_id:id });
+    showSuccessToast('✅ Driver deleted', 3000);
   }
 }
 
@@ -3675,7 +3693,11 @@ async function saveDriver() {
     const el = document.getElementById('dcf_' + c.key);
     if (el) record[c.key] = el.value.trim();
   });
-  const idx = drivers.findIndex(d=>d.driver_id===record.driver_id);
+  // Match by the driver_id this record was originally opened under, so correcting/retyping the
+  // Employee ID during an edit still updates the SAME driver instead of creating a duplicate.
+  const idx = editingDriverId
+    ? drivers.findIndex(d => d.driver_id === editingDriverId)
+    : drivers.findIndex(d => d.driver_id === record.driver_id);
   const isUpdateD = idx >= 0;
   const oldRecD = isUpdateD ? {...drivers[idx]} : {};
   if (isUpdateD) drivers[idx]={...drivers[idx],...record};
@@ -3692,6 +3714,7 @@ async function saveDriver() {
   await apiPost({ action:'upsert_driver', record });
   closeModal('driverModal');
   renderAll();
+  showSuccessToast(isUpdateD ? '✅ Driver updated' : '✅ Driver added', 3000);
 }
 
 async function deleteDriver(driverId) {
@@ -3875,6 +3898,7 @@ function saveUser() {
   saveUsers(users);
   closeModal('userModal');
   renderUsers();
+  showSuccessToast(editingUserId ? '✅ User updated' : '✅ User added', 3000);
 }
 
 function toggleUserActive(userId) {
@@ -4391,6 +4415,7 @@ function savePermit() {
 
   const permits = getPermits(_permitType);
   const entry = { id: _editPermitId || 'p_' + Date.now(), ref, permitNo: pno, permitName: pname, region, regions, startDate: start, endDate: end, notes, createdBy: currentUser?.name, createdAt: new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) };
+  const isPermitUpdate = !!_editPermitId;
   if (_editPermitId) {
     const idx = permits.findIndex(p => p.id === _editPermitId);
     if (idx >= 0) permits[idx] = entry;
@@ -4401,6 +4426,7 @@ function savePermit() {
   closeModal('permitModal');
   renderPermits();
   updatePermitCount();
+  showSuccessToast(isPermitUpdate ? '✅ Permit updated' : '✅ Permit added', 3000);
 }
 
 function deletePermit(type, id) {
@@ -4823,9 +4849,9 @@ function submitRequest() {
   } else {
     notifyByRole('admin', '📝 Ready for Final Approval', `${currentUser.name} (manager) submitted a new ${type} request awaiting your final approval.`, 'info');
   }
-  alert(initialStatus === 'pending_manager'
-    ? '✅ Your request has been submitted and is pending manager review.'
-    : '✅ Your request has been submitted and is pending admin approval.');
+  showSuccessToast(initialStatus === 'pending_manager'
+    ? '✅ Request submitted — pending manager review'
+    : '✅ Request submitted — pending admin approval', 4000);
 }
 
 function updateApprovalBadge() {
@@ -5857,5 +5883,6 @@ window.addEventListener('load', async () => {
 });
 </script>
 <div id="successToast"></div>
+<div id="savingIndicator"><span class="spin"></span> Saving…</div>
 </body>
 </html>
