@@ -192,8 +192,8 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pi
 .no-data{text-align:center;padding:40px;color:#94a3b8;font-size:13px;}
 #successToast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:13px 24px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,0.25);z-index:9999;display:none;align-items:center;gap:10px;max-width:90vw;border-left:4px solid var(--pink);}
 #successToast.show{display:flex;}
-#savingIndicator{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-60px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:10000;display:flex;align-items:center;gap:8px;transition:transform .2s ease;}
-#savingIndicator.show{transform:translateX(-50%) translateY(0);}
+#savingIndicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);opacity:0;background:#0f172a;color:#fff;padding:14px 26px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.35);z-index:10000;display:flex;align-items:center;gap:10px;transition:opacity .2s ease,transform .2s ease;pointer-events:none;}
+#savingIndicator.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
 #savingIndicator .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:savingspin .7s linear infinite;}
 @keyframes savingspin{to{transform:rotate(360deg);}}
 
