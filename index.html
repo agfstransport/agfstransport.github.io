@@ -3215,12 +3215,32 @@ function stageFuelRows(rows, monthKey) {
     return;
   }
 
+  // Build a lookup of fleet plates by their trailing numeric portion (e.g. "DXB-10316" -> "10316"),
+  // since fuel-provider files often list just the bare number without the emirate prefix your
+  // Fleet Master plates use. Only used as a fallback, and only when the numeric suffix is unique
+  // across the fleet (so "10316" doesn't accidentally match two different vehicles).
+  const numSuffixMap = {};
+  vehicles.forEach(v => {
+    const digits = String(v.plate||'').replace(/\D/g,'');
+    if (!digits) return;
+    if (!numSuffixMap[digits]) numSuffixMap[digits] = [];
+    numSuffixMap[digits].push(v);
+  });
+
+  const round2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+
   _fuelParsedRows = rows.map(r => {
     const plate = String(r[plateCol]||'').trim().toUpperCase();
-    const litres = parseFloat(String(r[litreCol]||'0').replace(/[^0-9.]/g,'')) || 0;
-    const cost   = parseFloat(String(r[costCol]||'0').replace(/[^0-9.]/g,'')) || 0;
-    const matched = vehicles.find(v => String(v.plate).toUpperCase() === plate);
-    return { plate, litres, cost, monthKey, matched: !!matched };
+    const litres = round2(parseFloat(String(r[litreCol]||'0').replace(/[^0-9.]/g,'')) || 0);
+    const cost   = round2(parseFloat(String(r[costCol]||'0').replace(/[^0-9.]/g,'')) || 0);
+    let matched = vehicles.find(v => String(v.plate).toUpperCase() === plate);
+    let matchedPlate = matched ? matched.plate : null;
+    if (!matched) {
+      const digits = plate.replace(/\D/g,'');
+      const candidates = digits ? (numSuffixMap[digits]||[]) : [];
+      if (candidates.length === 1) { matched = candidates[0]; matchedPlate = matched.plate; }
+    }
+    return { plate, litres, cost, monthKey, matched: !!matched, matchedPlate };
   }).filter(r => r.plate);
 
   const matchedCount = _fuelParsedRows.filter(r=>r.matched).length;
@@ -3231,13 +3251,13 @@ function stageFuelRows(rows, monthKey) {
     (unmatchedCount ? `, <span style="color:#dc2626;">${unmatchedCount} unmatched (will be flagged, not attached to any vehicle)</span>` : '');
 
   document.getElementById('fuelPreviewHead').innerHTML =
-    `<tr><th style="padding:6px 8px;text-align:left;">Plate</th><th style="padding:6px 8px;text-align:left;">Litres</th><th style="padding:6px 8px;text-align:left;">Cost (AED)</th><th style="padding:6px 8px;text-align:left;">Status</th></tr>`;
+    `<tr><th style="padding:6px 8px;text-align:left;">Plate (from file)</th><th style="padding:6px 8px;text-align:left;">Litres</th><th style="padding:6px 8px;text-align:left;">Cost (AED)</th><th style="padding:6px 8px;text-align:left;">Status</th></tr>`;
   document.getElementById('fuelPreviewBody').innerHTML = _fuelParsedRows.slice(0,200).map(r => `
     <tr style="border-top:1px solid var(--border);${r.matched?'':'background:#fef2f2;'}">
       <td style="padding:5px 8px;">${r.plate}</td>
-      <td style="padding:5px 8px;">${r.litres}</td>
+      <td style="padding:5px 8px;">${r.litres.toFixed(2)}</td>
       <td style="padding:5px 8px;">${r.cost.toFixed(2)}</td>
-      <td style="padding:5px 8px;">${r.matched ? '<span style="color:#15803d;">✓ In Fleet</span>' : '<span style="color:#dc2626;">⚠ Not Found</span>'}</td>
+      <td style="padding:5px 8px;">${r.matched ? `<span style="color:#15803d;">✓ Matched → ${r.matchedPlate}</span>` : '<span style="color:#dc2626;">⚠ Not Found</span>'}</td>
     </tr>`).join('') + (_fuelParsedRows.length > 200 ? `<tr><td colspan="4" style="padding:6px 8px;color:#94a3b8;">…and ${_fuelParsedRows.length-200} more rows</td></tr>` : '');
   document.getElementById('fuelUploadPreview').style.display = 'block';
 }
@@ -3256,7 +3276,7 @@ async function confirmFuelImport() {
 
   const touchedVehicles = [];
   matchedRows.forEach(r => {
-    const v = vehicles.find(veh => String(veh.plate).toUpperCase() === r.plate);
+    const v = vehicles.find(veh => String(veh.plate).toUpperCase() === String(r.matchedPlate).toUpperCase());
     if (!v) return;
     const hist = getVehicleFuelHistory(v);
     hist[monthKey] = { litres: r.litres, cost: r.cost };
