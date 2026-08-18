@@ -192,8 +192,8 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pi
 .no-data{text-align:center;padding:40px;color:#94a3b8;font-size:13px;}
 #successToast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:13px 24px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,0.25);z-index:9999;display:none;align-items:center;gap:10px;max-width:90vw;border-left:4px solid var(--pink);}
 #successToast.show{display:flex;}
-#savingIndicator{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);opacity:0;background:#0f172a;color:#fff;padding:14px 26px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.35);z-index:10000;display:flex;align-items:center;gap:10px;transition:opacity .2s ease,transform .2s ease;pointer-events:none;}
-#savingIndicator.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+#savingIndicator{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-60px);background:#0f172a;color:#fff;padding:9px 18px;border-radius:20px;font-size:12px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,0.3);z-index:10000;display:flex;align-items:center;gap:8px;transition:transform .2s ease;}
+#savingIndicator.show{transform:translateX(-50%) translateY(0);}
 #savingIndicator .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:savingspin .7s linear infinite;}
 @keyframes savingspin{to{transform:rotate(360deg);}}
 
@@ -356,6 +356,7 @@ tr.row-offhire:hover td{background:#ffe0cc !important;}
 tr.row-replacement:hover td{background:#d4f5dc !important;}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -440,6 +441,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="nav-tab" data-tab="drivers" onclick="switchTab('drivers')"><span class="nav-icon">👤</span> Driver Master <span class="nav-cnt" id="nc-drivers">0</span></div>
     <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab" data-tab="permits" onclick="switchTab('permits')"><span class="nav-icon">📜</span> Permits <span class="nav-cnt" id="nc-permits">0</span></div>
+    <div class="nav-tab" data-tab="fuel" onclick="switchTab('fuel')"><span class="nav-icon">⛽</span> Fuel</div>
     <div class="nav-tab manager-up" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
   </div>
 
@@ -786,6 +788,69 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- FUEL -->
+  <div class="page" id="page-fuel">
+    <div class="section-hd"><h2>⛽ Fuel Consumption</h2><div class="line"></div></div>
+
+    <!-- Upload card -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head"><h3>📤 Upload Monthly Fuel File</h3></div>
+      <div style="padding:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+        <div class="fg" style="margin:0;">
+          <label>Month Covered *</label>
+          <input type="month" id="fuelUploadMonth" style="padding:8px 10px;">
+        </div>
+        <div class="fg" style="margin:0;">
+          <label>Excel File (.xlsx / .xls / .csv) *</label>
+          <input type="file" id="fuelFileInput" accept=".xlsx,.xls,.csv" onchange="handleFuelFile(this)">
+        </div>
+      </div>
+      <div id="fuelUploadPreview" style="display:none;padding:0 16px 16px;">
+        <div id="fuelUploadSummary" style="font-size:12px;color:#475569;margin-bottom:10px;"></div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+          <table style="width:100%;font-size:12px;"><thead id="fuelPreviewHead"></thead><tbody id="fuelPreviewBody"></tbody></table>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-primary btn-sm" onclick="confirmFuelImport()">✅ Confirm Import</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelFuelImport()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly report -->
+    <div class="card">
+      <div class="card-head">
+        <h3>📊 Monthly Report</h3>
+        <div class="spacer"></div>
+        <select id="fuelReportMonth" onchange="renderFuelReport()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;"></select>
+        <select id="fuelReportView" onchange="renderFuelReport()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="all">All Vehicles</option>
+          <option value="withFuel">With Fuel Data</option>
+          <option value="noFuel">⚠ No Fuel Data (possible idle)</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="exportFuelReportColored()">🎨 Colored Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportFuelReportCSV()">⬇ Export CSV</button>
+      </div>
+      <div id="fuelReportSummary" style="padding:12px 16px;display:flex;gap:24px;flex-wrap:wrap;border-bottom:1px solid var(--border);"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Plate</th><th>Make/Model</th><th>Region</th><th>Status</th>
+            <th>Litres</th><th>Cost (AED)</th><th>AED/Litre</th>
+          </tr></thead>
+          <tbody id="fuelReportBody"></tbody>
+        </table>
+        <div class="no-data" id="fuelReportNoData" style="display:none;">No data for this month yet.</div>
+      </div>
+    </div>
+
+    <!-- Unmatched plates -->
+    <div class="card" style="margin-top:16px;" id="fuelUnmatchedCard">
+      <div class="card-head"><h3>⚠️ Unmatched Fuel Records</h3><div class="spacer"></div><span style="font-size:11px;color:#94a3b8;">Plates in uploaded files that don't exist in Fleet Master</span></div>
+      <div id="fuelUnmatchedList" style="padding:12px 16px;"></div>
     </div>
   </div>
 
@@ -1673,7 +1738,7 @@ async function loadData() {
     if (vData.ok) vehicles = vData.data;
     if (dData.ok) drivers  = dData.data;
     if (hData.ok) history  = hData.data;
-    autoDetectCustomCols('fleet',  vehicles, new Set(FLEET_COLS.map(c=>c.key)));
+    autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history']));
     autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
     renderAll();
     renderFieldConfigPanel();
@@ -3072,6 +3137,258 @@ async function bulkDriverStatus(status) {
 
 // Generic colored Excel (HTML-table-as-.xls) exporter, reusable across Fleet/Driver/Permits/Reports.
 // cols: [{key,label}], data: array of records, dateKeys: optional Set of keys to force-format as dates.
+// ═══════════════════════════════════════════
+// FUEL CONSUMPTION TRACKING
+// ═══════════════════════════════════════════
+// Per-vehicle fuel history is stored as a JSON blob in a single custom field on the vehicle
+// record itself (fuel_history), reusing the exact same sync path as every other vehicle field —
+// no new backend action needed. Structure: { "2026-08": { litres, cost }, "2026-09": {...}, ... }
+function getVehicleFuelHistory(v) {
+  try { return JSON.parse(v.fuel_history || '{}'); } catch(e) { return {}; }
+}
+function getUnmatchedFuelRecords() {
+  try { return JSON.parse(localStorage.getItem('agfsUnmatchedFuel') || '[]'); } catch(e) { return []; }
+}
+function saveUnmatchedFuelRecords(list) {
+  localStorage.setItem('agfsUnmatchedFuel', JSON.stringify(list));
+  syncFieldConfigToSheet(); // small list, rides the same shared config channel
+}
+function dismissUnmatchedFuel(idx) {
+  const list = getUnmatchedFuelRecords();
+  list.splice(idx, 1);
+  saveUnmatchedFuelRecords(list);
+  renderFuelUnmatched();
+}
+
+let _fuelParsedRows = null; // rows staged for import after file parse, before confirm
+
+function handleFuelFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const monthKey = document.getElementById('fuelUploadMonth').value;
+  if (!monthKey) { alert('Please choose the month this file covers first.'); input.value = ''; return; }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let rows = [];
+    try {
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const text = e.target.result;
+        const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+        const headers = lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+        rows = lines.slice(1).map(line => {
+          const vals = line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+          const obj = {}; headers.forEach((h,i)=>obj[h]=vals[i]||''); return obj;
+        });
+      } else {
+        const wb = XLSX.read(e.target.result, { type:'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+      }
+    } catch(err) {
+      alert('Could not read this file. Please check the format and try again.');
+      input.value = '';
+      return;
+    }
+    stageFuelRows(rows, monthKey);
+  };
+  if (file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+function findCol(row, candidates) {
+  const keys = Object.keys(row);
+  for (const cand of candidates) {
+    const hit = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g,'') === cand.toLowerCase().replace(/[^a-z0-9]/g,''));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function stageFuelRows(rows, monthKey) {
+  if (!rows.length) { alert('No rows found in this file.'); return; }
+  const plateCol  = findCol(rows[0], ['plate','platenumber','platenum','vehicleplate','plateno']);
+  const litreCol  = findCol(rows[0], ['litres','liters','ltr','volume','qty','quantity','fuel']);
+  const costCol   = findCol(rows[0], ['cost','amount','aed','price','totalcost','value']);
+  if (!plateCol || !litreCol || !costCol) {
+    alert(`Couldn't identify all required columns.\n\nFound headers: ${Object.keys(rows[0]).join(', ')}\n\nMake sure the file has columns for Plate Number, Litres, and Cost (any reasonable naming works).`);
+    return;
+  }
+
+  _fuelParsedRows = rows.map(r => {
+    const plate = String(r[plateCol]||'').trim().toUpperCase();
+    const litres = parseFloat(String(r[litreCol]||'0').replace(/[^0-9.]/g,'')) || 0;
+    const cost   = parseFloat(String(r[costCol]||'0').replace(/[^0-9.]/g,'')) || 0;
+    const matched = vehicles.find(v => String(v.plate).toUpperCase() === plate);
+    return { plate, litres, cost, monthKey, matched: !!matched };
+  }).filter(r => r.plate);
+
+  const matchedCount = _fuelParsedRows.filter(r=>r.matched).length;
+  const unmatchedCount = _fuelParsedRows.length - matchedCount;
+  document.getElementById('fuelUploadSummary').innerHTML =
+    `<strong>${_fuelParsedRows.length}</strong> rows read for <strong>${monthLabel(monthKey)}</strong> — ` +
+    `<span style="color:#15803d;">${matchedCount} matched to fleet</span>` +
+    (unmatchedCount ? `, <span style="color:#dc2626;">${unmatchedCount} unmatched (will be flagged, not attached to any vehicle)</span>` : '');
+
+  document.getElementById('fuelPreviewHead').innerHTML =
+    `<tr><th style="padding:6px 8px;text-align:left;">Plate</th><th style="padding:6px 8px;text-align:left;">Litres</th><th style="padding:6px 8px;text-align:left;">Cost (AED)</th><th style="padding:6px 8px;text-align:left;">Status</th></tr>`;
+  document.getElementById('fuelPreviewBody').innerHTML = _fuelParsedRows.slice(0,200).map(r => `
+    <tr style="border-top:1px solid var(--border);${r.matched?'':'background:#fef2f2;'}">
+      <td style="padding:5px 8px;">${r.plate}</td>
+      <td style="padding:5px 8px;">${r.litres}</td>
+      <td style="padding:5px 8px;">${r.cost.toFixed(2)}</td>
+      <td style="padding:5px 8px;">${r.matched ? '<span style="color:#15803d;">✓ In Fleet</span>' : '<span style="color:#dc2626;">⚠ Not Found</span>'}</td>
+    </tr>`).join('') + (_fuelParsedRows.length > 200 ? `<tr><td colspan="4" style="padding:6px 8px;color:#94a3b8;">…and ${_fuelParsedRows.length-200} more rows</td></tr>` : '');
+  document.getElementById('fuelUploadPreview').style.display = 'block';
+}
+
+function cancelFuelImport() {
+  _fuelParsedRows = null;
+  document.getElementById('fuelUploadPreview').style.display = 'none';
+  document.getElementById('fuelFileInput').value = '';
+}
+
+async function confirmFuelImport() {
+  if (!_fuelParsedRows || !_fuelParsedRows.length) return;
+  const monthKey = _fuelParsedRows[0].monthKey;
+  const matchedRows = _fuelParsedRows.filter(r => r.matched);
+  const unmatchedRows = _fuelParsedRows.filter(r => !r.matched);
+
+  const touchedVehicles = [];
+  matchedRows.forEach(r => {
+    const v = vehicles.find(veh => String(veh.plate).toUpperCase() === r.plate);
+    if (!v) return;
+    const hist = getVehicleFuelHistory(v);
+    hist[monthKey] = { litres: r.litres, cost: r.cost };
+    v.fuel_history = JSON.stringify(hist);
+    if (!touchedVehicles.includes(v)) touchedVehicles.push(v);
+  });
+  persistVehicles();
+  touchedVehicles.forEach(v => apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } }));
+
+  if (unmatchedRows.length) {
+    const existing = getUnmatchedFuelRecords();
+    unmatchedRows.forEach(r => existing.push({ plate:r.plate, litres:r.litres, cost:r.cost, monthKey, uploadedBy:currentUser?.name||'', uploadedAt:new Date().toLocaleString('en-AE',{timeZone:'Asia/Dubai'}) }));
+    saveUnmatchedFuelRecords(existing);
+  }
+
+  logChange('fleet','Updated','FUEL_IMPORT',`Fuel import for ${monthLabel(monthKey)}: ${touchedVehicles.length} vehicles updated, ${unmatchedRows.length} unmatched`,[
+    {field:'fuel_history', label:'Fuel Import', oldVal:'', newVal:`${monthLabel(monthKey)} — ${touchedVehicles.length} matched, ${unmatchedRows.length} unmatched`}
+  ]);
+
+  cancelFuelImport();
+  populateFuelMonthDropdown();
+  document.getElementById('fuelReportMonth').value = monthKey;
+  renderFuelReport();
+  renderFuelUnmatched();
+  showSuccessToast(`✅ Fuel data imported — ${touchedVehicles.length} vehicles updated`, 4000);
+}
+
+function monthLabel(monthKey) {
+  if (!monthKey) return '';
+  const [y,m] = monthKey.split('-');
+  const d = new Date(parseInt(y), parseInt(m)-1, 1);
+  return d.toLocaleString('en-US', { month:'long', year:'numeric' });
+}
+
+function populateFuelMonthDropdown() {
+  const sel = document.getElementById('fuelReportMonth');
+  if (!sel) return;
+  const months = new Set();
+  vehicles.forEach(v => Object.keys(getVehicleFuelHistory(v)).forEach(m => months.add(m)));
+  const cur = sel.value;
+  const sorted = [...months].sort().reverse();
+  sel.innerHTML = sorted.length
+    ? sorted.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('')
+    : '<option value="">No fuel data yet</option>';
+  if (cur && sorted.includes(cur)) sel.value = cur;
+}
+
+function renderFuelReport() {
+  const monthKey = document.getElementById('fuelReportMonth')?.value;
+  const view = document.getElementById('fuelReportView')?.value || 'all';
+  const tbody = document.getElementById('fuelReportBody');
+  const noData = document.getElementById('fuelReportNoData');
+  const summaryEl = document.getElementById('fuelReportSummary');
+  if (!tbody) return;
+  if (!monthKey) { tbody.innerHTML=''; noData.style.display='block'; summaryEl.innerHTML=''; return; }
+
+  let rows = vehicles.map(v => {
+    const hist = getVehicleFuelHistory(v);
+    const rec = hist[monthKey];
+    return { v, litres: rec?rec.litres:null, cost: rec?rec.cost:null };
+  });
+  if (view === 'withFuel') rows = rows.filter(r => r.litres !== null);
+  if (view === 'noFuel')   rows = rows.filter(r => r.litres === null && r.v.status !== 'De-fleet' && r.v.status !== 'Total Loss');
+
+  noData.style.display = rows.length ? 'none' : 'block';
+  tbody.innerHTML = rows.map(r => {
+    const perLitre = (r.litres && r.cost) ? (r.cost/r.litres).toFixed(2) : '—';
+    return `<tr ${r.litres===null?'style="background:#fef2f2;"':''}>
+      <td><strong>${r.v.plate}</strong></td>
+      <td>${r.v.make||'—'}</td>
+      <td>${r.v.region||'—'}</td>
+      <td><span class="badge ${statusBadge[r.v.status]||'b-ops'}">${r.v.status||'—'}</span></td>
+      <td>${r.litres!==null?r.litres:'<span style="color:#dc2626;">No data</span>'}</td>
+      <td>${r.cost!==null?r.cost.toFixed(2):'—'}</td>
+      <td>${perLitre}</td>
+    </tr>`;
+  }).join('');
+
+  const withFuel = rows.filter(r=>r.litres!==null);
+  const totalLitres = withFuel.reduce((s,r)=>s+r.litres,0);
+  const totalCost = withFuel.reduce((s,r)=>s+r.cost,0);
+  const noFuelCount = vehicles.filter(v => { const h=getVehicleFuelHistory(v); return !h[monthKey] && v.status!=='De-fleet' && v.status!=='Total Loss'; }).length;
+  summaryEl.innerHTML = `
+    <div><div style="font-size:11px;color:#94a3b8;">Total Litres</div><div style="font-size:18px;font-weight:700;">${totalLitres.toLocaleString()}</div></div>
+    <div><div style="font-size:11px;color:#94a3b8;">Total Cost (AED)</div><div style="font-size:18px;font-weight:700;">${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>
+    <div><div style="font-size:11px;color:#94a3b8;">Vehicles with Fuel Data</div><div style="font-size:18px;font-weight:700;">${withFuel.length}</div></div>
+    <div><div style="font-size:11px;color:#dc2626;">⚠ No Fuel Data (active fleet)</div><div style="font-size:18px;font-weight:700;color:#dc2626;">${noFuelCount}</div></div>
+  `;
+}
+
+function renderFuelUnmatched() {
+  const el = document.getElementById('fuelUnmatchedList');
+  if (!el) return;
+  const list = getUnmatchedFuelRecords();
+  if (!list.length) { el.innerHTML = '<div class="no-data">No unmatched fuel records.</div>'; return; }
+  el.innerHTML = list.map((r,i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;background:#fef2f2;border-radius:6px;margin-bottom:6px;font-size:12px;">
+      <strong>${r.plate}</strong>
+      <span style="color:#64748b;">${monthLabel(r.monthKey)} · ${r.litres}L · AED ${r.cost.toFixed(2)}</span>
+      <span style="color:#94a3b8;font-size:11px;">uploaded by ${r.uploadedBy}</span>
+      <span style="margin-left:auto;cursor:pointer;color:#2563eb;font-weight:600;" onclick="dismissUnmatchedFuel(${i})">✕ Dismiss</span>
+    </div>`).join('');
+}
+
+function getFuelReportRows(monthKey) {
+  return vehicles.map(v => {
+    const hist = getVehicleFuelHistory(v);
+    const rec = hist[monthKey];
+    return { plate:v.plate, make:v.make, region:v.region, status:v.status, litres: rec?rec.litres:'', cost: rec?rec.cost:'' };
+  });
+}
+
+function exportFuelReportCSV() {
+  const monthKey = document.getElementById('fuelReportMonth')?.value;
+  if (!monthKey) { alert('No month selected.'); return; }
+  const rows = getFuelReportRows(monthKey);
+  const headers = ['Plate','Make/Model','Region','Status','Litres','Cost (AED)'];
+  const csv = [headers.join(','), ...rows.map(r=>[r.plate,r.make,r.region,r.status,r.litres,r.cost].map(v=>`"${(v??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  dl('AGFS_Fuel_' + monthKey + '.csv', csv, 'text/csv');
+}
+
+function exportFuelReportColored() {
+  const monthKey = document.getElementById('fuelReportMonth')?.value;
+  if (!monthKey) { alert('No month selected.'); return; }
+  const rows = getFuelReportRows(monthKey).map(r => ({ ...r, status: r.litres===''? 'Under Maintenance' : 'Active' })); // reuse reportRowColor's status coloring (no-data rows get flagged amber)
+  const cols = [
+    {key:'plate',label:'Plate'}, {key:'make',label:'Make/Model'}, {key:'region',label:'Region'},
+    {key:'litres',label:'Litres'}, {key:'cost',label:'Cost (AED)'},
+  ];
+  exportColoredExcel('AGFS_Fuel_' + monthKey, cols, rows);
+}
+
 function exportColoredExcel(filename, cols, data, dateKeys) {
   if (!data.length) { alert('No records to export.'); return; }
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4099,6 +4416,7 @@ function getAllFieldConfigs() {
       driver: getRemovedCustomCols('driver'),
     },
     vehicleIdCounter: getVehicleIdCounter(),
+    unmatchedFuel: getUnmatchedFuelRecords(),
   };
 }
 
@@ -4137,6 +4455,9 @@ async function syncFieldConfigFromSheet() {
         // Always keep the higher value — no device can ever hand out a duplicate/lower Vehicle ID after pulling.
         const local = getVehicleIdCounter();
         localStorage.setItem('agfsVehicleIdCounter', String(Math.max(local, j.data.vehicleIdCounter)));
+      }
+      if (Array.isArray(j.data.unmatchedFuel)) {
+        localStorage.setItem('agfsUnmatchedFuel', JSON.stringify(j.data.unmatchedFuel));
       }
       applyFieldConfigs();
       if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
@@ -5832,6 +6153,14 @@ function switchTab(tab) {
   if (pg) { pg.style.display = ''; pg.classList.add('active'); }
   if (tab === 'access') { renderFieldConfigPanel(); renderUsers(); renderHistory(); updateApprovalBadge(); }
   if (tab === 'permits') { renderPermits(); }
+  if (tab === 'fuel') {
+    const monthInput = document.getElementById('fuelUploadMonth');
+    if (monthInput && !monthInput.value) {
+      const now = new Date();
+      monthInput.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    }
+    populateFuelMonthDropdown(); renderFuelReport(); renderFuelUnmatched();
+  }
   if (tab === 'fleet')   { renderFleet(); }
   if (tab === 'drivers') { renderDrivers(); }
 }
