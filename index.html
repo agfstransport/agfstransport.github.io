@@ -849,7 +849,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
     <!-- Unmatched plates -->
     <div class="card" style="margin-top:16px;" id="fuelUnmatchedCard">
-      <div class="card-head"><h3>⚠️ Unmatched Fuel Records</h3><div class="spacer"></div><span style="font-size:11px;color:#94a3b8;">Plates in uploaded files that don't exist in Fleet Master</span></div>
+      <div class="card-head"><h3>⚠️ Unmatched Fuel Records</h3><div class="spacer"></div><span style="font-size:11px;color:#94a3b8;">Plates in uploaded files that don't exist in Fleet Master</span><button class="btn btn-ghost btn-sm admin-only" onclick="clearAllUnmatchedFuel()" style="margin-left:10px;">🗑 Clear All</button></div>
       <div id="fuelUnmatchedList" style="padding:12px 16px;"></div>
     </div>
   </div>
@@ -3158,6 +3158,15 @@ function dismissUnmatchedFuel(idx) {
   list.splice(idx, 1);
   saveUnmatchedFuelRecords(list);
   renderFuelUnmatched();
+}
+function clearAllUnmatchedFuel() {
+  if (currentUser?.role !== 'admin') return;
+  const list = getUnmatchedFuelRecords();
+  if (!list.length) return;
+  if (!confirm(`Clear all ${list.length} unmatched fuel record(s)? This only removes them from this list — it won't affect any vehicle data.`)) return;
+  saveUnmatchedFuelRecords([]);
+  renderFuelUnmatched();
+  showSuccessToast('✅ Unmatched fuel list cleared', 3000);
 }
 
 let _fuelParsedRows = null; // rows staged for import after file parse, before confirm
