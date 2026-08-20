@@ -439,9 +439,9 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="nav-tab active" data-tab="dash" onclick="switchTab('dash')"><span class="nav-icon">📊</span> Dashboard</div>
     <div class="nav-tab" data-tab="fleet" onclick="switchTab('fleet')"><span class="nav-icon">🚗</span> Fleet Master <span class="nav-cnt" id="nc-fleet">0</span></div>
     <div class="nav-tab" data-tab="drivers" onclick="switchTab('drivers')"><span class="nav-icon">👤</span> Driver Master <span class="nav-cnt" id="nc-drivers">0</span></div>
-    <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab" data-tab="permits" onclick="switchTab('permits')"><span class="nav-icon">📜</span> Permits <span class="nav-cnt" id="nc-permits">0</span></div>
     <div class="nav-tab" data-tab="fuel" onclick="switchTab('fuel')"><span class="nav-icon">⛽</span> Fuel</div>
+    <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab manager-up" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
   </div>
 
@@ -585,7 +585,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <button class="btn btn-ghost btn-sm" id="fleet-unlock-btn" onclick="toggleFleetEdit()" style="display:none;">🔓 Unlock Editing</button>
         <button class="btn btn-primary btn-sm" onclick="openVehicleModal()">+ Add Vehicle</button>
         <button class="btn btn-ghost btn-sm" onclick="openImportModal('fleet')">⬆ Import CSV</button>
-        <button class="btn btn-primary btn-sm" onclick="exportFleetColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFleetCSV()">⬇ Export CSV</button>
         <button class="btn btn-ghost btn-sm admin-only" onclick="backfillVehicleIDs()" title="Assign AG#### IDs to any vehicle that doesn't have one yet">🆔 Backfill Vehicle IDs</button>
         <div class="col-toggle-wrap">
@@ -594,7 +593,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <div class="col-toggle-hd">Show / Hide Columns</div>
           </div>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="loadData()">↻ Refresh</button>
       </div>
       <div class="filters">
         <input type="text" class="search-box" id="fleetSearch" placeholder="Search plate, driver, ID, category, owner…" oninput="fleetPage=1;renderFleet()">
@@ -655,7 +653,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="spacer"></div>
         <button class="btn btn-primary btn-sm" onclick="openDriverModal()">+ Add Driver</button>
         <button class="btn btn-ghost btn-sm" onclick="openImportModal('driver')">⬆ Import CSV</button>
-        <button class="btn btn-primary btn-sm" onclick="exportDriversColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportDriverCSV()">⬇ Export CSV</button>
         <div class="col-toggle-wrap">
           <button class="btn btn-ghost btn-sm" onclick="toggleColMenu('driver')" style="gap:5px;">⊞ Columns ▾</button>
@@ -732,7 +729,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <h3>Fleet Permit Records</h3>
             <div class="spacer"></div>
             <input type="text" class="search-box" id="fleetPermitSearch" placeholder="Search plate, permit…" oninput="renderPermits()" style="min-width:160px;">
-            <button class="btn btn-primary btn-sm" onclick="exportPermitsColored('fleet')">🎨 Colored Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportPermitsCSV('fleet')">⬇ Export</button>
           </div>
           <div class="tbl-wrap">
@@ -765,7 +761,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <h3>Driver Permit Records</h3>
             <div class="spacer"></div>
             <input type="text" class="search-box" id="driverPermitSearch" placeholder="Search driver, permit…" oninput="renderPermits()" style="min-width:160px;">
-            <button class="btn btn-primary btn-sm" onclick="exportPermitsColored('driver')">🎨 Colored Excel</button>
             <button class="btn btn-ghost btn-sm" onclick="exportPermitsCSV('driver')">⬇ Export</button>
           </div>
           <div class="tbl-wrap">
@@ -2533,6 +2528,8 @@ function buildColMenu(tracker, drop) {
   const cols    = getOrderedCols(tracker);
   const vis     = getVisibleCols(tracker);
   const isAdmin = currentUser?.role === 'admin';
+  cols.forEach(c => { vis[c.key] = true; }); // force every field to always show
+  saveVisibleCols(tracker, vis);
   const items   = cols.map(c => `
     <div class="col-toggle-item" draggable="true" data-key="${c.key}" data-tracker="${tracker}"
       ondragstart="colDragStart(event)"
@@ -2540,14 +2537,10 @@ function buildColMenu(tracker, drop) {
       ondrop="colDrop(event,'${tracker}')"
       ondragend="colDragEnd(event)">
       <span class="drag-handle" title="Drag to reorder">⠿</span>
-      <input type="checkbox" ${vis[c.key]?'checked':''} ${c.locked?'disabled':''} onchange="toggleCol('${tracker}','${c.key}',this.checked)" onclick="event.stopPropagation()">
       <span style="flex:1;">${c.label}${c.locked?' <span style="color:#94a3b8;font-size:10px;">(always)</span>':''}</span>
       ${!c.locked && !c.protected && isAdmin ? `<span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();removeCustomCol('${tracker}','${c.key}')" style="color:#dc2626;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1;" title="Remove column">✕</span>` : ''}
     </div>`).join('');
-  const adminAddBtn = isAdmin ? `
-    <div style="padding:8px 14px 4px;border-top:1px solid var(--border);margin-top:4px;">
-      <button class="btn btn-primary btn-sm" style="width:100%;justify-content:center;" onclick="openAddColModal('${tracker}')">+ Add Custom Column</button>
-    </div>` : '';
+  const adminAddBtn = '';
   const removedBase   = isAdmin ? getRemovedBaseCols(tracker) : [];
   const removedCustom = isAdmin ? getRemovedCustomCols(tracker) : [];
   const restoreSection = (removedBase.length || removedCustom.length) ? `
