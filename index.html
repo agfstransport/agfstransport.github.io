@@ -1722,6 +1722,46 @@ async function refreshData() {
   showSuccessToast('✅ Data refreshed from Google Sheet', 2500);
 }
 
+// One-time (repeatable/safe) cleanup: if the same custom column got created twice under the
+// same label (e.g. "End User ID" added twice by accident), keep whichever copy has the most
+// actual data filled in, merge in any values only present on the duplicate(s), then remove the
+// duplicate definitions — so nothing gets lost, but the column list stops showing the same
+// field twice.
+function dedupeCustomColsByLabel(tracker, records) {
+  const custom = getCustomCols(tracker);
+  const groups = {};
+  custom.forEach(c => {
+    const norm = c.label.trim().toLowerCase();
+    (groups[norm] = groups[norm] || []).push(c);
+  });
+  const dupGroups = Object.values(groups).filter(g => g.length > 1);
+  if (!dupGroups.length) return;
+
+  const removedList = getRemovedCustomCols(tracker);
+  const dropKeys = new Set();
+  const changedRecords = new Set();
+
+  dupGroups.forEach(group => {
+    const scored = group.map(c => ({ col: c, filled: records.filter(r => r[c.key]).length }));
+    scored.sort((a,b) => b.filled - a.filled || (a.col.key < b.col.key ? -1 : 1));
+    const keep = scored[0].col;
+    const drop = scored.slice(1).map(s => s.col);
+    records.forEach(r => {
+      if (r[keep.key]) return;
+      for (const d of drop) { if (r[d.key]) { r[keep.key] = r[d.key]; changedRecords.add(r); break; } }
+    });
+    drop.forEach(d => { dropKeys.add(d.key); if (!removedList.find(x=>x.key===d.key)) removedList.push(d); });
+  });
+
+  saveCustomCols(tracker, custom.filter(c => !dropKeys.has(c.key)));
+  saveRemovedCustomCols(tracker, removedList);
+  if (tracker === 'fleet') persistVehicles(); else persistDrivers();
+  changedRecords.forEach(r => {
+    if (tracker === 'fleet') apiPost({ action:'upsert', record:r, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    else apiPost({ action:'upsert_driver', record:r });
+  });
+}
+
 async function loadData() {
   loadPersistedData(); // always load local first
   if (!GAS_URL) { renderAll(); return; }
@@ -1743,6 +1783,8 @@ async function loadData() {
     if (hData.ok) history  = hData.data;
     autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history']));
     autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
+    dedupeCustomColsByLabel('fleet', vehicles);
+    dedupeCustomColsByLabel('driver', drivers);
     renderAll();
     renderFieldConfigPanel();
   } catch (e) {
@@ -1764,6 +1806,26 @@ function autoDetectCustomCols(tracker, records, knownKeys) {
   if (staleOverlap.length) {
     existing = existing.filter(c => !knownKeys.has(c.key));
     saveCustomCols(tracker, existing);
+  }
+  // One-time cleanup: remove "Mulkiya Expiry" (redundant with "Date Of Reg Expiry"), any custom
+  // column whose label duplicates a real base field (e.g. a stray "End User ID" custom column when
+  // End User ID already exists as a built-in field), and any duplicate labels among custom columns
+  // themselves (keep the first, drop the rest). Moved into the removed-columns list rather than
+  // deleted outright, so they can be restored if needed.
+  const baseLabels = new Set((tracker === 'fleet' ? FLEET_COLS : DRIVER_COLS).map(c => c.label.trim().toLowerCase()));
+  const seenLabels = new Set();
+  const toDrop = [];
+  existing.forEach(c => {
+    const norm = c.label.trim().toLowerCase();
+    if (norm === 'mulkiya expiry' || baseLabels.has(norm) || seenLabels.has(norm)) { toDrop.push(c); return; }
+    seenLabels.add(norm);
+  });
+  if (toDrop.length) {
+    existing = existing.filter(c => !toDrop.includes(c));
+    saveCustomCols(tracker, existing);
+    const removedList = getRemovedCustomCols(tracker);
+    toDrop.forEach(c => { if (!removedList.some(r => r.key === c.key)) removedList.push(c); });
+    saveRemovedCustomCols(tracker, removedList);
   }
   const existingKeys = new Set(existing.map(c => c.key));
   const removedKeys = new Set(getRemovedCustomCols(tracker).map(c => c.key)); // don't resurrect a column an admin removed
@@ -2531,14 +2593,9 @@ function buildColMenu(tracker, drop) {
   cols.forEach(c => { vis[c.key] = true; }); // force every field to always show
   saveVisibleCols(tracker, vis);
   const items   = cols.map(c => `
-    <div class="col-toggle-item" draggable="true" data-key="${c.key}" data-tracker="${tracker}"
-      ondragstart="colDragStart(event)"
-      ondragover="colDragOver(event)"
-      ondrop="colDrop(event,'${tracker}')"
-      ondragend="colDragEnd(event)">
-      <span class="drag-handle" title="Drag to reorder">⠿</span>
+    <div class="col-toggle-item" data-key="${c.key}" data-tracker="${tracker}">
       <span style="flex:1;">${c.label}${c.locked?' <span style="color:#94a3b8;font-size:10px;">(always)</span>':''}</span>
-      ${!c.locked && !c.protected && isAdmin ? `<span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();removeCustomCol('${tracker}','${c.key}')" style="color:#dc2626;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1;" title="Remove column">✕</span>` : ''}
+      ${!c.locked && !c.protected && isAdmin ? `<span onclick="event.preventDefault();event.stopPropagation();removeCustomCol('${tracker}','${c.key}')" style="color:#dc2626;font-size:14px;cursor:pointer;padding:2px 6px;line-height:1;" title="Remove column">✕</span>` : ''}
     </div>`).join('');
   const adminAddBtn = '';
   const removedBase   = isAdmin ? getRemovedBaseCols(tracker) : [];
@@ -2551,19 +2608,15 @@ function buildColMenu(tracker, drop) {
         if (!def) return '';
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;">
           <span style="color:#64748b;">${def.label}</span>
-          <span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();restoreBaseCol('${tracker}','${k}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
+          <span onclick="event.preventDefault();event.stopPropagation();restoreBaseCol('${tracker}','${k}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
         </div>`;
       }).join('')}
       ${removedCustom.map(def => `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;">
           <span style="color:#64748b;">${def.label}</span>
-          <span draggable="false" onmousedown="event.stopPropagation()" onclick="event.preventDefault();event.stopPropagation();restoreCustomCol('${tracker}','${def.key}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
+          <span onclick="event.preventDefault();event.stopPropagation();restoreCustomCol('${tracker}','${def.key}')" style="color:#2563eb;cursor:pointer;font-weight:600;">↺ Restore</span>
         </div>`).join('')}
     </div>` : '';
-  const resetBtn = `
-    <div style="padding:4px 14px 6px;">
-      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;font-size:11px;" onclick="resetColOrder('${tracker}')">↺ Reset Order</button>
-    </div>`;
-  drop.innerHTML = '<div class="col-toggle-hd">Show / Hide · Drag to Reorder</div>' + items + adminAddBtn + restoreSection + resetBtn;
+  drop.innerHTML = '<div class="col-toggle-hd">All Fields</div>' + items + adminAddBtn + restoreSection;
 }
 
 let _dragSrcKey = null;
@@ -4433,6 +4486,7 @@ const FLEET_CONFIGURABLE_FIELDS = [
   { key:'own',          label:'Own / Rental',      defaultType:'select', defaultOpts:['Own','Rental','Leased'] },
   { key:'category',     label:'Category',           defaultType:'select', defaultOpts:['Double Cabin Pickup','16 Seater','30 Seater','34 Seater','64 Seater','71 Seater','Panel Van','Saloon','SUV','Van','Motorcycle','Equipment'] },
   { key:'utilization',  label:'Utilization',        defaultType:'select', defaultOpts:['Passenger','Operations'] },
+  { key:'status',       label:'Status',             defaultType:'select', defaultOpts:['Active','Under Maintenance','Total Loss','De-fleet','Idle','Adhoc','Accident','Off Hire','Replacement Veh Received','Permanent Replacement Veh Received'] },
   { key:'designation',  label:'Designation',        defaultType:'text',   defaultOpts:[] },
   { key:'contract',     label:'Contract Ref',       defaultType:'text',   defaultOpts:[] },
   { key:'monthly_cost', label:'Monthly Cost (AED)', defaultType:'text',   defaultOpts:[] },
