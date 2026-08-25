@@ -2234,19 +2234,7 @@ function renderDashboard() {
 
   // ── GPS / RFID dashboard card ──────────────────────────────────
   const gpsTypes = {};
-  filtV.forEach(v => {
-    const k = (v.gps_rfid||'').trim() ? (v.gps_rfid.trim()) : 'No GPS/RFID';
-    // Group by type (GPS Only, RFID Only, GPS+RFID, None)
-    let grpKey = 'No GPS/RFID';
-    if (v.gps_rfid) {
-      const g = v.gps_rfid.toLowerCase();
-      if (g.includes('gps') && g.includes('rfid')) grpKey = 'GPS + RFID';
-      else if (g.includes('rfid')) grpKey = 'RFID Only';
-      else if (g.includes('gps')) grpKey = 'GPS Only';
-      else grpKey = 'Fitted';
-    }
-    gpsTypes[grpKey] = (gpsTypes[grpKey]||0)+1;
-  });
+  filtV.forEach(v => { gpsTypes[gpsGroupKey(v)] = (gpsTypes[gpsGroupKey(v)]||0)+1; });
 
   const gpsColors = { 'GPS + RFID':'#22c55e', 'GPS Only':'#3b82f6', 'RFID Only':'#8b5cf6', 'Fitted':'#f59e0b', 'No GPS/RFID':'#ef4444' };
   const gpsEntries = Object.entries(gpsTypes).sort((a,b)=>b[1]-a[1]);
@@ -2311,7 +2299,7 @@ function fleetFilterRegion(region) {
   switchTab('fleet');
   setTimeout(() => {
     const regionSel = document.getElementById('fleetRegion');
-    if (regionSel) { regionSel.value = region; renderFleet(); }
+    if (regionSel) { regionSel.value = region === 'Unset' ? '__unset__' : region; renderFleet(); }
   }, 50);
 }
 
@@ -2822,10 +2810,12 @@ function getFilteredFleet() {
     if (st && st !== '__unset__' && v.status !== st) return false;
     if (cat  && v.category    !== cat)  return false;
     if (own  && v.own         !== own)  return false;
-    if (reg  && v.region      !== reg)  return false;
+    if (reg === '__unset__' && v.region) return false;
+    if (reg && reg !== '__unset__' && v.region !== reg) return false;
     if (util && v.utilization !== util) return false;
     if (jcFilter && !(v.job_code||'').toLowerCase().includes(jcFilter)) return false;
     if (q && ![v.plate,v.make,v.end_user,v.region,v.remarks,v.reg,v.category,v.owner,v.job_code,v.designation].join(' ').toLowerCase().includes(q)) return false;
+    if (dashboardQuickFilter?.scope === 'fleet-gps' && gpsGroupKey(v) !== dashboardQuickFilter.mode) return false;
     if (dashboardQuickFilter?.scope === 'fleet-reg') {
       const match = regExpCols.some(c => {
         if (!v[c.key]) return false;
@@ -2846,6 +2836,8 @@ function renderFleet() {
   const chipEl = document.getElementById('fleetQuickFilterChip');
   if (chipEl) chipEl.innerHTML = (dashboardQuickFilter?.scope === 'fleet-reg')
     ? quickFilterChipHTML(`Vehicle registrations ${dashboardQuickFilter.mode === 'expired' ? 'EXPIRED' : 'expiring within 30 days'}`)
+    : (dashboardQuickFilter?.scope === 'fleet-gps')
+    ? quickFilterChipHTML(`GPS/RFID: ${dashboardQuickFilter.mode}`)
     : '';
   const data = getFilteredFleet();
   const tbody = document.getElementById('fleetBody');
@@ -2904,8 +2896,9 @@ function populateFleetFilters() {
   setOwnEl.innerHTML = '<option value="">Own / Rental</option>' + owns.map(o=>`<option ${o===curo?'selected':''}>${o}</option>`).join('');
   const setRegEl = document.getElementById('fleetRegion');
   const curr = setRegEl.value;
-  const fixedFleetRegs = ['Dubai','Abu Dhabi','Al Ain','Northern Emirates','Western Region'];
-  setRegEl.innerHTML = '<option value="">All Regions</option>' + fixedFleetRegs.map(r=>`<option ${r===curr?'selected':''}>${r}</option>`).join('');
+  setRegEl.innerHTML = '<option value="">All Regions</option>' +
+    regs.map(r=>`<option value="${r}" ${r===curr?'selected':''}>${r}</option>`).join('') +
+    (vehicles.some(v=>!v.region) ? `<option value="__unset__" ${curr==='__unset__'?'selected':''}>— No Region Set —</option>` : '');
 }
 
 function sortFleet(f) { if(fleetSort.f===f) fleetSort.d*=-1; else { fleetSort.f=f; fleetSort.d=1; } fleetPage=1; renderFleet(); }
@@ -3012,20 +3005,20 @@ function dashDriverClass(cls) {
   if (el) el.value = cls;
   driverPage = 1; renderDrivers();
 }
+// Classifies a vehicle's gps_rfid text into one of the dashboard's GPS categories — shared by
+// the dashboard grouping and the actual Fleet Master filter, so a click always matches exactly
+// the vehicles that were counted.
+function gpsGroupKey(v) {
+  if (!v.gps_rfid || !v.gps_rfid.trim()) return 'No GPS/RFID';
+  const g = v.gps_rfid.toLowerCase();
+  if (g.includes('gps') && g.includes('rfid')) return 'GPS + RFID';
+  if (g.includes('rfid')) return 'RFID Only';
+  if (g.includes('gps')) return 'GPS Only';
+  return 'Fitted';
+}
+
 function dashFleetGps(gpsType) {
-  switchTab('fleet');
-  clearFleetFilters();
-  if (gpsType === 'No GPS/RFID') {
-    // Filter vehicles with empty gps_rfid
-    document.getElementById('fleetSearch').value = '';
-    fleetPage = 1;
-    // Temporarily filter — use search won't work cleanly, so filter by tag
-    window._dashGpsFilter = gpsType;
-  } else {
-    document.getElementById('fleetSearch').value = gpsType.split(' ')[0]; // 'GPS' or 'RFID'
-    window._dashGpsFilter = null;
-  }
-  renderFleet();
+  setDashboardQuickFilter('fleet-gps', gpsType, 'fleet');
 }
 
 function dashDriverType(type) {
