@@ -1997,7 +1997,7 @@ function renderDashboard() {
   const regionGrpPills = grp(vehicles, 'region');
   const pillsElNew = document.getElementById('dashRegionPills');
   if (pillsElNew) {
-    pillsElNew.innerHTML = Object.entries(regionGrpPills).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([r]) =>
+    pillsElNew.innerHTML = Object.entries(regionGrpPills).filter(([r])=>r!=='Unset').sort((a,b)=>b[1]-a[1]).slice(0,6).map(([r]) =>
       `<button class="dash-pill" onclick="fleetFilterRegion('${r}')">${r}</button>`).join('');
   }
 
@@ -5230,19 +5230,23 @@ function generateVehicleUID() {
 
 // One-time (repeatable/safe) backfill: assigns AG#### IDs to any existing vehicle that doesn't have one yet.
 // Order is by plate, alphabetically, for a stable and predictable assignment.
-function backfillVehicleIDs() {
+async function backfillVehicleIDs() {
   if (currentUser?.role !== 'admin') return;
   const missing = vehicles.filter(v => !v.vehicle_uid).sort((a,b) => String(a.plate).localeCompare(String(b.plate)));
   if (!missing.length) { alert('Every vehicle already has a Vehicle ID.'); return; }
   if (!confirm(`Assign Vehicle IDs to ${missing.length} vehicle(s) that don't have one yet?\n\nIDs will be assigned in plate order, starting from AG${String(getVehicleIdCounter()+1).padStart(4,'0')}.`)) return;
   missing.forEach(v => { v.vehicle_uid = generateVehicleUID(); });
   persistVehicles();
-  missing.forEach(v => apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } }));
+  renderFleet(); // show the new IDs locally right away
+  // Save each one and WAIT for the Sheet to confirm before moving on — sequential, not fire-and-forget,
+  // so a Sync right after this finishes can never pull stale data and wipe out what was just assigned.
+  for (const v of missing) {
+    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+  }
   logChange('fleet','Updated','BULK',`Backfilled Vehicle IDs for ${missing.length} vehicles`,[
     {field:'vehicle_uid', label:'Vehicle ID Backfill', oldVal:'—', newVal:`${missing.length} vehicles assigned AG#### IDs`}
   ]);
-  renderFleet();
-  showSuccessToast(`✅ Assigned Vehicle IDs to ${missing.length} vehicle(s)`, 4000);
+  showSuccessToast(`✅ Assigned Vehicle IDs to ${missing.length} vehicle(s) — saved to Sheet`, 4000);
 }
 
 function notifyByRole(role, title, message, type) {
