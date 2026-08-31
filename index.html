@@ -453,7 +453,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div style="background:#fff;border-radius:12px;padding:14px 20px;box-shadow:0 4px 16px rgba(0,0,0,0.15);">
         <div style="font-size:17px;font-weight:800;color:#2d1b4e;">Fleet Dashboard</div>
       </div>
-      <div style="display:flex;gap:8px;" id="dashRegionPills"></div>
       <div style="flex:1;"></div>
       <div class="dash-stat-pill" onclick="switchTab('fleet')"><div class="dsp-val" id="d-total">—</div><div class="dsp-lbl">Total Fleet</div></div>
       <div class="dash-stat-pill" onclick="switchTab('drivers')"><div class="dsp-val" id="d-drivers">—</div><div class="dsp-lbl">Total Drivers</div></div>
@@ -1993,14 +1992,6 @@ function renderDashboard() {
 
   // ── Update active vehicle count KPI ─────────────────────────────
   const activeCount = filtV.filter(v=>v.status==='Active'||v.status==='Deployed').length;
-
-  // ── Region quick-filter pills (click to filter Fleet Master) ────
-  const regionGrpPills = grp(vehicles, 'region');
-  const pillsElNew = document.getElementById('dashRegionPills');
-  if (pillsElNew) {
-    pillsElNew.innerHTML = Object.entries(regionGrpPills).filter(([r])=>r!=='Unset').sort((a,b)=>b[1]-a[1]).slice(0,6).map(([r]) =>
-      `<button class="dash-pill" onclick="fleetFilterRegion('${r}')">${r}</button>`).join('');
-  }
 
   // ── Needs Attention box: permits + license + registration expiry ──
   const dashAlert  = document.getElementById('dashPermitAlert');
