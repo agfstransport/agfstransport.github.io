@@ -927,7 +927,21 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="verify-grid" id="vVerifyGrid"></div>
       </div>
       <div class="fgrid">
-        <div class="fg"><label>Plate Number *</label><div class="autocomplete-wrap"><input type="text" id="v-plate" placeholder="e.g. DXB-11234" oninput="acPlate(this)"><div class="autocomplete-drop" id="ac-plate"></div></div>
+        <div class="fg">
+          <label>Plate Number *</label>
+          <div style="display:flex;gap:6px;">
+            <select id="v-plate-emirate" style="flex:0 0 92px;" onchange="combinePlateFields()">
+              <option value="">Code</option>
+              <option>DXB</option><option>AUH</option><option>SHJ</option><option>AJM</option>
+              <option>RAK</option><option>FUJ</option><option>UAQ</option>
+            </select>
+            <div class="autocomplete-wrap" style="flex:1;">
+              <input type="text" id="v-plate-num" placeholder="e.g. 11234" oninput="combinePlateFields();acPlate(this)">
+              <div class="autocomplete-drop" id="ac-plate"></div>
+            </div>
+          </div>
+          <input type="hidden" id="v-plate">
+          <div id="v-plate-dup-warning" style="font-size:11px;color:var(--red);margin-top:4px;display:none;">⚠ This plate already exists in Fleet Master.</div>
           <div id="v-uid-display" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
         </div>
         <div class="fg"><label>Status *</label><select id="v-status" onchange="checkStatusReasonRequired(this.value)"><option>Active</option><option>Under Maintenance</option><option>Total Loss</option><option>De-fleet</option><option>Idle</option><option>Adhoc</option><option>Accident</option><option>Off Hire</option><option>Replacement Veh Received</option><option>Permanent Replacement Veh Received</option></select></div>
@@ -3585,6 +3599,9 @@ const OPS_VEHICLE_FIELDS   = ['status','end_user','end_user_id','designation','p
 function openVehicleModal(plate) {
   editingVehiclePlate = plate || null;
   vFields.forEach(f => { const el=document.getElementById('v-'+f); if(el) el.value=''; });
+  document.getElementById('v-plate-emirate').value = '';
+  document.getElementById('v-plate-num').value = '';
+  document.getElementById('v-plate-dup-warning').style.display = 'none';
   document.getElementById('v-status').value = 'Active';
   _vOriginalStatus = 'Active';
   _pendingStatusChange = null;
@@ -3620,6 +3637,7 @@ function openVehicleModal(plate) {
         el.value = val;
       }
     });
+    if (v) splitPlateIntoFields(v.plate);
     document.getElementById('vModalTitle').textContent = 'Edit Vehicle — ' + plate;
     _vOriginalStatus = document.getElementById('v-status').value;
   }
@@ -3637,6 +3655,14 @@ function openVehicleModal(plate) {
     el.style.background = lockPlate ? '#f8fafc' : '';
     el.style.color = lockPlate ? '#94a3b8' : '';
   });
+  const lockPlateSplit = !isAdmin && isEditing;
+  ['v-plate-emirate','v-plate-num'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = lockPlateSplit;
+    el.style.background = lockPlateSplit ? '#f8fafc' : '';
+    el.style.color = lockPlateSplit ? '#94a3b8' : '';
+  });
 
   const hint = document.getElementById('vAdminHint');
   if (hint) hint.style.display = 'none';
@@ -3645,16 +3671,16 @@ function openVehicleModal(plate) {
   if (!plate) {
     document.getElementById('vModalTitle').textContent = '➕ Add New Vehicle';
     // Disable plate autocomplete for new form (no auto-fill from existing)
-    const plateInput = document.getElementById('v-plate');
-    if (plateInput) { plateInput.oninput = null; plateInput.removeAttribute('oninput'); }
+    const plateInput = document.getElementById('v-plate-num');
+    if (plateInput) { plateInput.oninput = combinePlateFields; }
     const driverInput = document.getElementById('v-end_user');
     if (driverInput) { driverInput.oninput = null; driverInput.removeAttribute('oninput'); }
     // Hide verify box
     document.getElementById('vVerifyBox').style.display = 'none';
   } else {
     // Re-enable autocomplete for edit mode (plate lookup + driver lookup)
-    const plateInput = document.getElementById('v-plate');
-    if (plateInput) plateInput.setAttribute('oninput', 'acPlate(this)');
+    const plateInput = document.getElementById('v-plate-num');
+    if (plateInput) plateInput.oninput = function(){ combinePlateFields(); acPlate(this); };
     const driverInput = document.getElementById('v-end_user');
     if (driverInput) driverInput.setAttribute('oninput', 'acDriver(this)');
   }
@@ -3760,9 +3786,10 @@ const DRIVER_FIELD_LABELS = {
 };
 
 async function saveVehicle() {
+  combinePlateFields(); // ensure hidden plate field reflects the current emirate + number entries
   const g = f => document.getElementById('v-'+f)?.value?.trim()||'';
   const vErrors = [];
-  if (!g('plate'))      vErrors.push('Plate Number');
+  if (!g('plate'))      vErrors.push('Plate Number (both Code and Number)');
   if (!g('reg'))        vErrors.push('Plate Code');
   if (!g('make'))       vErrors.push('Make / Model');
   if (!g('category'))   vErrors.push('Category');
@@ -4159,6 +4186,33 @@ async function deleteDriver(driverId) {
 // ═══════════════════════════════════════════
 // AUTOCOMPLETE
 // ═══════════════════════════════════════════
+function combinePlateFields() {
+  const emirate = document.getElementById('v-plate-emirate')?.value || '';
+  const num = document.getElementById('v-plate-num')?.value.trim() || '';
+  const combined = emirate && num ? `${emirate}-${num}` : num; // allow plain numeric plates too (some existing records have no prefix)
+  const hidden = document.getElementById('v-plate');
+  if (hidden) hidden.value = combined;
+  const warnEl = document.getElementById('v-plate-dup-warning');
+  if (warnEl) {
+    const dup = combined && vehicles.some(v => String(v.plate).toUpperCase() === combined.toUpperCase() && v.plate !== editingVehiclePlate);
+    warnEl.style.display = dup ? 'block' : 'none';
+  }
+}
+
+function splitPlateIntoFields(plate) {
+  const emSel = document.getElementById('v-plate-emirate');
+  const numEl = document.getElementById('v-plate-num');
+  if (!emSel || !numEl) return;
+  const m = String(plate||'').match(/^([A-Za-z]{2,4})-(.+)$/);
+  if (m && [...emSel.options].some(o => o.value === m[1].toUpperCase())) {
+    emSel.value = m[1].toUpperCase();
+    numEl.value = m[2];
+  } else {
+    emSel.value = '';
+    numEl.value = plate || '';
+  }
+}
+
 function acPlate(input) {
   if (!editingVehiclePlate) { document.getElementById('ac-plate').classList.remove('open'); return; }
   const q = input.value.toLowerCase();
@@ -4174,6 +4228,7 @@ function fillVehicle(plate) {
   const v = vehicles.find(x=>x.plate===plate);
   if (!v) return;
   vFields.forEach(f=>{ const el=document.getElementById('v-'+f); if(el) el.value=v[f]||''; });
+  splitPlateIntoFields(v.plate);
   document.getElementById('ac-plate').classList.remove('open');
   // Show verify box
   const vg = document.getElementById('vVerifyGrid');
