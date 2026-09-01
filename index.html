@@ -928,15 +928,15 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       </div>
       <div class="fgrid">
         <div class="fg">
-          <label>Plate Number *</label>
+          <label>Plate Number <span style="color:var(--pink)">*</span></label>
           <div style="display:flex;gap:6px;">
             <select id="v-plate-emirate" style="flex:0 0 92px;" onchange="combinePlateFields()">
-              <option value="">Code</option>
+              <option value="">Code *</option>
               <option>DXB</option><option>AUH</option><option>SHJ</option><option>AJM</option>
               <option>RAK</option><option>FUJ</option><option>UAQ</option>
             </select>
             <div class="autocomplete-wrap" style="flex:1;">
-              <input type="text" id="v-plate-num" placeholder="e.g. 11234" oninput="combinePlateFields();acPlate(this)">
+              <input type="text" id="v-plate-num" placeholder="Number *" oninput="combinePlateFields();acPlate(this)">
               <div class="autocomplete-drop" id="ac-plate"></div>
             </div>
           </div>
@@ -3789,7 +3789,10 @@ async function saveVehicle() {
   combinePlateFields(); // ensure hidden plate field reflects the current emirate + number entries
   const g = f => document.getElementById('v-'+f)?.value?.trim()||'';
   const vErrors = [];
-  if (!g('plate'))      vErrors.push('Plate Number (both Code and Number)');
+  const plateEmirate = document.getElementById('v-plate-emirate')?.value.trim() || '';
+  const plateNum = document.getElementById('v-plate-num')?.value.trim() || '';
+  if (!plateEmirate) vErrors.push('Plate Emirates Code (e.g. DXB, AUH…)');
+  if (!plateNum)     vErrors.push('Plate Number');
   if (!g('reg'))        vErrors.push('Plate Code');
   if (!g('make'))       vErrors.push('Make / Model');
   if (!g('category'))   vErrors.push('Category');
