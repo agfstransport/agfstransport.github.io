@@ -2296,7 +2296,7 @@ function renderDashboard() {
           <div style="font-size:11px;font-weight:700;color:#3d2563;">${h.plate} — ${h.action}</div>
           <div style="font-size:9px;color:#9b8bb8;margin-top:2px;">${h.submitterName||''} ${h.new_value && h.field!=='ALL' ? '→ "'+h.new_value+'"':''}</div>
         </div>
-        <div style="font-size:10px;color:#c4b8d9;flex-shrink:0;">${h.time}</div>
+        <div style="font-size:10px;color:#c4b8d9;flex-shrink:0;">${fmtDisplayDateTime(h.time)}</div>
       </div>`).join('') || '<div style="text-align:center;color:#9b8bb8;font-size:12px;padding:24px;">No activity yet.</div>';
   }
 }
@@ -2862,8 +2862,12 @@ function renderFleet() {
       <th>Actions</th>`;
   }
 
+  const pendingStatusPlates = new Set(getRequests().filter(r => r.type==='status_fleet' && (r.status==='pending_manager'||r.status==='pending_admin')).map(r=>r.data?.plate));
   const getCellVal = (v, key) => {
-    if (key==='status')      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>`;
+    if (key==='status') {
+      const pendingTag = pendingStatusPlates.has(v.plate) ? ` <span class="badge b-maint" title="Status change request pending approval">⏳ Pending</span>` : '';
+      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>${pendingTag}`;
+    }
     if (key==='utilization') return v.utilization ? `<span class="badge ${utilBadge[v.utilization]||'b-ops'}">${v.utilization}</span>` : '—';
     if (key==='end_user')    return v.end_user || '<span style="color:#94a3b8">—</span>';
     return v[key] ? smartDateFormat(v[key]) : '—';
@@ -3020,7 +3024,7 @@ function gpsGroupKey(v) {
   if (g.includes('gps') && g.includes('rfid')) return 'GPS + RFID';
   if (g.includes('rfid')) return 'RFID Only';
   if (g.includes('gps')) return 'GPS Only';
-  return 'Fitted';
+  return v.gps_rfid.trim(); // show the actual value rather than a vague catch-all label
 }
 
 function dashFleetGps(gpsType) {
@@ -3864,6 +3868,15 @@ async function saveVehicle() {
   // until approved.
   let statusChangeSubmitted = false;
   if (!isAdmin && _pendingStatusChange && editingVehiclePlate && record.status === _pendingStatusChange.status) {
+    const existingPending = getRequests().find(r =>
+      r.type === 'status_fleet' && r.data?.plate === editingVehiclePlate &&
+      (r.status === 'pending_manager' || r.status === 'pending_admin')
+    );
+    if (existingPending) {
+      alert(`A status change request for ${editingVehiclePlate} is already pending approval (submitted ${fmtDisplayDateTime(existingPending.submittedAt)} by ${existingPending.submittedBy}).\n\nNo need to submit again — it'll take effect once approved.`);
+      _pendingStatusChange = null;
+      record.status = _vOriginalStatus;
+    } else {
     record.status = _vOriginalStatus; // hold the old status until approved
     const initialStatus = currentUser?.role === 'manager' ? 'pending_admin' : 'pending_manager';
     const requests = getRequests();
@@ -3883,6 +3896,7 @@ async function saveVehicle() {
       notifyByRole('admin', '📝 Ready for Final Approval', `${currentUser.name} (manager) requested ${label}, awaiting your final approval.`, 'info');
     }
     statusChangeSubmitted = true;
+    }
   } else if (isAdmin && _pendingStatusChange && editingVehiclePlate && record.status === _pendingStatusChange.status) {
     // Admin is the final authority — apply immediately, but log the reason for the record
     record.remarks = record.remarks ? `${record.remarks}\n[${_pendingStatusChange.status}] ${_pendingStatusChange.reason}` : `[${_pendingStatusChange.status}] ${_pendingStatusChange.reason}`;
@@ -5068,7 +5082,7 @@ function exportPermitsCSV(type) {
   const headers = ['Ref','Permit No','Permit Name','Permitted Region','Start Date','End Date','Status','Notes','Created By','Created At'];
   const rows = data.flatMap(p => expandPermitRegions(p).map(r => {
     const st = permitStatus(r.endDate);
-    return [p.ref, p.permitNo, p.permitName||'', r.region, fmtDisplayDate(r.startDate), fmtDisplayDate(r.endDate), st.label, p.notes||'', p.createdBy||'', p.createdAt||''];
+    return [p.ref, p.permitNo, p.permitName||'', r.region, fmtDisplayDate(r.startDate), fmtDisplayDate(r.endDate), st.label, p.notes||'', p.createdBy||'', fmtDisplayDateTime(p.createdAt||'')];
   }));
   const csv = [headers, ...rows].map(r => r.map(v=>`"${(v||'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
   dl('AGFS_' + (type==='fleet'?'Fleet':'Driver') + '_Permits_' + fmtDate() + '.csv', csv, 'text/csv');
@@ -5192,7 +5206,7 @@ function renderNotifDropdown() {
       <div style="flex:1;min-width:0;">
         <div style="font-size:12px;font-weight:${n.read?500:700};color:var(--navy);">${n.title}</div>
         <div style="font-size:11px;color:#64748b;margin-top:2px;">${n.message}</div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:3px;">${n.time}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:3px;">${fmtDisplayDateTime(n.time)}</div>
       </div>
       <span onclick="deleteNotif('${n.id}')" style="color:#94a3b8;cursor:pointer;font-size:14px;flex-shrink:0;padding:0 2px;">✕</span>
     </div>`).join('')}`;
@@ -5459,7 +5473,7 @@ function renderApprovals() {
         ${typeBadge}
         <span style="font-size:12px;">${summary}</span>
         ${stageBadge}
-        <span style="margin-left:auto;font-size:11px;color:#94a3b8;">${r.submittedBy} (${r.submittedId}) · ${r.submittedAt}</span>
+        <span style="margin-left:auto;font-size:11px;color:#94a3b8;">${r.submittedBy} (${r.submittedId}) · ${fmtDisplayDateTime(r.submittedAt)}</span>
       </div>
       ${details ? `<div style="padding:10px 14px;background:#fafbff;border-top:1px solid var(--border);">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">${details}</div>
@@ -6303,6 +6317,20 @@ function smartSortCompare(av, bv) {
     if (ai && bi) return ai.localeCompare(bi);
   }
   return String(av).localeCompare(String(bv));
+}
+
+// Fixes timestamps that got corrupted into a raw JS Date.toString() by a Google Sheets round-trip
+// (e.g. "Mon Mar 09 2026 09:43:45 GMT+0400 (...)"), while leaving already-clean datetime strings
+// (e.g. "09/03/2026, 9:43:45 am") untouched — that format is dd/mm/yyyy and must never be re-parsed
+// by the native Date constructor, which would misread it as mm/dd/yyyy.
+function fmtDisplayDateTime(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (/^[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}\s\d{2}:\d{2}:\d{2}/.test(str)) {
+    const d = new Date(str); // this specific format is unambiguous, safe to reparse
+    if (!isNaN(d.getTime())) return d.toLocaleString('en-AE', { timeZone: 'Asia/Dubai' });
+  }
+  return str;
 }
 
 function fmtDisplayDate(val) {
