@@ -826,13 +826,18 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option value="withFuel">With Fuel Data</option>
           <option value="noFuel">⚠ No Fuel Data (possible idle)</option>
         </select>
+        <select id="fuelReportMetric" onchange="renderFuelReport()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;display:none;">
+          <option value="litres">Litres</option>
+          <option value="cost">Cost (AED)</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" id="fuelMonthWiseBtn" onclick="toggleFuelMonthWise()" style="gap:5px;">📅 Month-wise View</button>
         <button class="btn btn-primary btn-sm" onclick="exportFuelReportColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFuelReportCSV()">⬇ Export CSV</button>
       </div>
       <div id="fuelReportSummary" style="padding:12px 16px;display:flex;gap:24px;flex-wrap:wrap;border-bottom:1px solid var(--border);"></div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr>
+          <thead id="fuelReportHead"><tr>
             <th>Plate</th><th>Make/Model</th><th>Region</th><th>Status</th>
             <th>Litres</th><th>Cost (AED)</th><th>AED/Litre</th>
           </tr></thead>
@@ -3390,7 +3395,83 @@ function populateFuelMonthDropdown() {
   if (cur && sorted.includes(cur)) sel.value = cur;
 }
 
+let _fuelMonthWise = false;
+function toggleFuelMonthWise() {
+  _fuelMonthWise = !_fuelMonthWise;
+  const btn = document.getElementById('fuelMonthWiseBtn');
+  const monthSel = document.getElementById('fuelReportMonth');
+  const metricSel = document.getElementById('fuelReportMetric');
+  if (btn) {
+    btn.classList.toggle('btn-primary', _fuelMonthWise);
+    btn.classList.toggle('btn-ghost', !_fuelMonthWise);
+    btn.textContent = _fuelMonthWise ? '📅 Single Month View' : '📅 Month-wise View';
+  }
+  if (monthSel) monthSel.style.display = _fuelMonthWise ? 'none' : '';
+  if (metricSel) metricSel.style.display = _fuelMonthWise ? '' : 'none';
+  renderFuelReport();
+}
+
+function getAllFuelMonths() {
+  const months = new Set();
+  vehicles.forEach(v => Object.keys(getVehicleFuelHistory(v)).forEach(m => months.add(m)));
+  return [...months].sort();
+}
+
+function renderFuelReportMonthWise() {
+  const view = document.getElementById('fuelReportView')?.value || 'all';
+  const metric = document.getElementById('fuelReportMetric')?.value || 'litres';
+  const search = (document.getElementById('fuelReportSearch')?.value || '').trim().toLowerCase();
+  const thead = document.getElementById('fuelReportHead');
+  const tbody = document.getElementById('fuelReportBody');
+  const noData = document.getElementById('fuelReportNoData');
+  const summaryEl = document.getElementById('fuelReportSummary');
+
+  const months = getAllFuelMonths();
+  if (!months.length) { thead.innerHTML=''; tbody.innerHTML=''; noData.style.display='block'; summaryEl.innerHTML=''; return; }
+
+  thead.innerHTML = `<tr><th>Plate</th><th>Make/Model</th><th>Region</th><th>Status</th>${months.map(m=>`<th>${monthLabel(m)}</th>`).join('')}<th>Total</th></tr>`;
+
+  let rows = vehicles.map(v => {
+    const hist = getVehicleFuelHistory(v);
+    const perMonth = months.map(m => hist[m] ? hist[m][metric] : null);
+    const total = perMonth.reduce((s,x)=>s+(x||0),0);
+    return { v, perMonth, total, hasAny: perMonth.some(x=>x!==null) };
+  });
+  if (view === 'withFuel') rows = rows.filter(r => r.hasAny);
+  if (view === 'noFuel')   rows = rows.filter(r => !r.hasAny && r.v.status !== 'De-fleet' && r.v.status !== 'Total Loss');
+  if (search) {
+    rows = rows.filter(r => {
+      const plateDigits = String(r.v.plate||'').replace(/\D/g,'');
+      const haystack = [r.v.plate, r.v.make, r.v.region, r.v.status].join(' ').toLowerCase();
+      return haystack.includes(search) || (plateDigits && plateDigits.includes(search.replace(/\D/g,'')) && /\d/.test(search));
+    });
+  }
+
+  noData.style.display = rows.length ? 'none' : 'block';
+  const fmt = n => metric === 'cost' ? (n!==null ? n.toFixed(2) : null) : n;
+  tbody.innerHTML = rows.map(r => `
+    <tr ${!r.hasAny?'style="background:#fef2f2;"':''}>
+      <td><strong>${r.v.plate}</strong></td>
+      <td>${r.v.make||'—'}</td>
+      <td>${r.v.region||'—'}</td>
+      <td><span class="badge ${statusBadge[r.v.status]||'b-ops'}">${r.v.status||'—'}</span></td>
+      ${r.perMonth.map(x => `<td>${x!==null ? fmt(x) : '<span style="color:#cbd5e1;">—</span>'}</td>`).join('')}
+      <td><strong>${fmt(r.total)}</strong></td>
+    </tr>`).join('');
+
+  const monthTotals = months.map((m,i) => rows.reduce((s,r)=>s+(r.perMonth[i]||0),0));
+  const grandTotal = monthTotals.reduce((s,x)=>s+x,0);
+  summaryEl.innerHTML = `
+    <div><div style="font-size:11px;color:#94a3b8;">Months Shown</div><div style="font-size:18px;font-weight:700;">${months.length}</div></div>
+    <div><div style="font-size:11px;color:#94a3b8;">Grand Total (${metric==='cost'?'AED':'Litres'})</div><div style="font-size:18px;font-weight:700;">${grandTotal.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>
+    <div><div style="font-size:11px;color:#94a3b8;">Vehicles Shown</div><div style="font-size:18px;font-weight:700;">${rows.length}</div></div>
+  `;
+}
+
 function renderFuelReport() {
+  if (_fuelMonthWise) { renderFuelReportMonthWise(); return; }
+  const thead = document.getElementById('fuelReportHead');
+  thead.innerHTML = `<tr><th>Plate</th><th>Make/Model</th><th>Region</th><th>Status</th><th>Litres</th><th>Cost (AED)</th><th>AED/Litre</th></tr>`;
   const monthKey = document.getElementById('fuelReportMonth')?.value;
   const view = document.getElementById('fuelReportView')?.value || 'all';
   const search = (document.getElementById('fuelReportSearch')?.value || '').trim().toLowerCase();
@@ -3505,6 +3586,21 @@ function getFuelReportRows(monthKey) {
 }
 
 function exportFuelReportCSV() {
+  if (_fuelMonthWise) {
+    const months = getAllFuelMonths();
+    if (!months.length) { alert('No fuel data to export.'); return; }
+    const metric = document.getElementById('fuelReportMetric')?.value || 'litres';
+    const headers = ['Plate','Make/Model','Region','Status', ...months.map(monthLabel), 'Total'];
+    const rows = vehicles.map(v => {
+      const hist = getVehicleFuelHistory(v);
+      const perMonth = months.map(m => hist[m] ? hist[m][metric] : '');
+      const total = perMonth.reduce((s,x)=>s+(x||0),0);
+      return [v.plate, v.make, v.region, v.status, ...perMonth, total];
+    });
+    const csv = [headers.join(','), ...rows.map(r=>r.map(v=>`"${(v??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+    dl('AGFS_Fuel_MonthWise_' + metric + '.csv', csv, 'text/csv');
+    return;
+  }
   const monthKey = document.getElementById('fuelReportMonth')?.value;
   if (!monthKey) { alert('No month selected.'); return; }
   const rows = getFuelReportRows(monthKey);
@@ -3514,6 +3610,26 @@ function exportFuelReportCSV() {
 }
 
 function exportFuelReportColored() {
+  if (_fuelMonthWise) {
+    const months = getAllFuelMonths();
+    if (!months.length) { alert('No fuel data to export.'); return; }
+    const metric = document.getElementById('fuelReportMetric')?.value || 'litres';
+    const rows = vehicles.map(v => {
+      const hist = getVehicleFuelHistory(v);
+      const row = { plate:v.plate, make:v.make, region:v.region };
+      let total = 0, hasAny = false;
+      months.forEach(m => { const val = hist[m] ? hist[m][metric] : ''; row[m] = val; if (val!=='') { total += val; hasAny = true; } });
+      row.total = total;
+      row.status = hasAny ? 'Active' : 'Under Maintenance'; // reuse reportRowColor coloring (no-data rows flagged amber)
+      return row;
+    });
+    const cols = [
+      {key:'plate',label:'Plate'}, {key:'make',label:'Make/Model'}, {key:'region',label:'Region'},
+      ...months.map(m=>({key:m,label:monthLabel(m)})), {key:'total',label:'Total'},
+    ];
+    exportColoredExcel('AGFS_Fuel_MonthWise_' + metric, cols, rows);
+    return;
+  }
   const monthKey = document.getElementById('fuelReportMonth')?.value;
   if (!monthKey) { alert('No month selected.'); return; }
   const rows = getFuelReportRows(monthKey).map(r => ({ ...r, status: r.litres===''? 'Under Maintenance' : 'Active' })); // reuse reportRowColor's status coloring (no-data rows get flagged amber)
