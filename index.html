@@ -172,6 +172,14 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pi
 .filters select:focus,.filters input:focus{outline:2px solid var(--pink);border-color:var(--pink);}
 .col-toggle-wrap{position:relative;}
 .col-toggle-drop{position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:500;min-width:210px;max-height:360px;overflow-y:auto;padding:8px 0;display:none;}
+.dash-customize-drop{position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:500;min-width:260px;max-height:420px;overflow-y:auto;padding:8px 0;display:none;}
+.dash-customize-drop.open{display:block;}
+.dash-customize-hd{padding:6px 14px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.dcust-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:default;}
+.dcust-item:hover{background:#f5f8ff;}
+.dcust-item input{accent-color:var(--pink);width:14px;height:14px;}
+.dcust-item .drag-handle{color:#94a3b8;cursor:grab;font-size:14px;flex-shrink:0;}
+.dcust-item.dragging{opacity:0.4;}
 .col-toggle-drop.open{display:block;}
 .col-toggle-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;font-size:12px;color:var(--text);user-select:none;}
 .col-toggle-item:hover{background:#f5f8ff;}
@@ -454,6 +462,10 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div style="font-size:17px;font-weight:800;color:#2d1b4e;">Fleet Dashboard</div>
       </div>
       <div style="flex:1;"></div>
+      <div class="dash-customize-wrap" style="position:relative;">
+        <button class="btn btn-ghost btn-sm admin-only" onclick="toggleDashCustomizeMenu()" style="background:#fff;gap:5px;">🎛 Customize Dashboard</button>
+        <div class="dash-customize-drop" id="dashCustomizeDrop"></div>
+      </div>
       <div class="dash-stat-pill" onclick="switchTab('fleet')"><div class="dsp-val" id="d-total">—</div><div class="dsp-lbl">Total Fleet</div></div>
       <div class="dash-stat-pill" onclick="switchTab('drivers')"><div class="dsp-val" id="d-drivers">—</div><div class="dsp-lbl">Total Drivers</div></div>
       <div class="dash-stat-pill" onclick="switchTab('permits')"><div class="dsp-val" id="d-permits-expiring">—</div><div class="dsp-lbl">Permits Due</div></div>
@@ -478,98 +490,87 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       .dash-alert-row .dar-arrow{margin-left:auto;opacity:0.6;font-size:11px;}
       .dash-alert-empty{font-size:12px;color:#94a3b8;padding:6px 2px;}
     </style>
+    <style>
+      #dashCardsContainer{display:flex;flex-wrap:wrap;gap:14px;}
+      .dcard-third{flex:1 1 320px;}
+      .dcard-half{flex:1 1 460px;}
+      .dcard-full{flex:1 1 100%;}
+    </style>
 
-    <!-- ══════════ FLEET SECTION ══════════ -->
-
-    <!-- ROW 1: Fleet by Status + Fleet by Ownership + Fleet by Category -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
-      <div class="dash-glass-card">
+    <!-- ══════════ CUSTOMIZABLE DASHBOARD CARDS ══════════ -->
+    <div id="dashCardsContainer">
+      <div class="dash-glass-card dcard-third" data-dash-card="fleetStatus">
         <div class="dgc-title">Fleet by Status</div>
         <div id="dashStatusBars"></div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="fleetOwnership">
         <div class="dgc-title">Fleet by Ownership</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
           <svg width="120" height="120" viewBox="0 0 120 120" id="dashOwnDonut"></svg>
         </div>
         <div id="dashOwnLegend" style="display:flex;justify-content:center;gap:14px;margin-top:8px;"></div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="fleetCategory">
         <div class="dgc-title">Fleet by Category</div>
         <div id="dashCatBars"></div>
       </div>
-    </div>
 
-    <!-- ROW 2: Fleet & Drivers by Region + Fleet by Utilization -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-half" data-dash-card="fleetDriversByRegion">
         <div class="dgc-title">Fleet & Drivers by Region</div>
         <div id="dashRegionDonut2Wrap" style="display:flex;align-items:center;gap:16px;">
           <svg width="130" height="130" viewBox="0 0 130 130" id="dashRegionDonut"></svg>
           <div id="dashRegionLegend" style="flex:1;display:flex;flex-direction:column;gap:8px;"></div>
         </div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-half" data-dash-card="fleetUtilization">
         <div class="dgc-title">Fleet by Utilization</div>
         <div id="dashEndUserBars"></div>
       </div>
-    </div>
 
-    <!-- ROW 2b: GPS RFID summary -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
-      <div class="dash-glass-card" id="dashGpsCard">
+      <div class="dash-glass-card dcard-third" data-dash-card="gpsStatus" id="dashGpsCard">
         <div class="dgc-title">GPS / RFID Status</div>
         <div id="dashGpsBars"></div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="gpsCoverage">
         <div class="dgc-title">GPS Coverage</div>
         <div style="display:flex;align-items:center;gap:14px;">
           <svg width="90" height="90" viewBox="0 0 100 100" id="dashGpsDonut"></svg>
           <div id="dashGpsDonutLegend" style="display:flex;flex-direction:column;gap:6px;flex:1;"></div>
         </div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="noGps">
         <div class="dgc-title">Vehicles Without GPS</div>
         <div id="dashNoGpsList" style="max-height:120px;overflow-y:auto;"></div>
       </div>
-    </div>
 
-    <!-- ══════════ DRIVER SECTION ══════════ -->
-
-    <!-- ROW 3: Drivers by Location + Drivers by Class + Driver Status -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:14px;margin-bottom:14px;">
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="driversByLocation">
         <div class="dgc-title">Drivers by Location</div>
         <div id="dashDriverLocBars"></div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="driversByClass">
         <div class="dgc-title">Drivers by Class</div>
         <div id="dashClassBars"></div>
       </div>
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-third" data-dash-card="driverStatus">
         <div class="dgc-title">Driver Status</div>
         <div style="display:flex;align-items:center;gap:14px;">
           <div style="flex-shrink:0;"><svg width="110" height="110" viewBox="0 0 120 120" id="dashDriverStatusDonut"></svg></div>
           <div id="dashDriverStatusLegend" style="display:flex;flex-direction:column;gap:6px;flex:1;"></div>
         </div>
       </div>
-    </div>
 
-    <!-- ROW 4: Drivers by Type -->
-    <div style="display:grid;grid-template-columns:1fr;gap:14px;">
-      <div class="dash-glass-card">
+      <div class="dash-glass-card dcard-full" data-dash-card="driversByType">
         <div class="dgc-title">Drivers by Type — Inhouse vs Outsource</div>
         <div style="display:flex;align-items:center;gap:24px;">
           <div style="flex-shrink:0;"><svg width="110" height="110" viewBox="0 0 120 120" id="dashDriverTypeDonut"></svg></div>
           <div id="dashDriverTypeLegend" style="display:flex;gap:24px;flex:1;"></div>
         </div>
       </div>
-    </div>
 
-    <!-- RECENT ACTIVITY -->
-    <div class="dash-glass-card" style="margin-top:14px;">
-      <div class="dgc-title">📋 Recent Activity</div>
-      <div id="recentActivity" style="max-height:220px;overflow-y:auto;margin-top:4px;"></div>
+      <div class="dash-glass-card dcard-full" data-dash-card="recentActivity">
+        <div class="dgc-title">📋 Recent Activity</div>
+        <div id="recentActivity" style="max-height:220px;overflow-y:auto;margin-top:4px;"></div>
+      </div>
     </div>
 
   </div>
@@ -1990,6 +1991,118 @@ function setDashRegion(region) {
   renderDashboard();
 }
 
+// ═══════════════════════════════════════════
+// DASHBOARD CUSTOMIZATION (admin-only, personal preference)
+// ═══════════════════════════════════════════
+const DASHBOARD_CARDS = [
+  { key:'fleetStatus',          label:'Fleet by Status' },
+  { key:'fleetOwnership',       label:'Fleet by Ownership' },
+  { key:'fleetCategory',        label:'Fleet by Category' },
+  { key:'fleetDriversByRegion', label:'Fleet & Drivers by Region' },
+  { key:'fleetUtilization',     label:'Fleet by Utilization' },
+  { key:'gpsStatus',            label:'GPS / RFID Status' },
+  { key:'gpsCoverage',          label:'GPS Coverage' },
+  { key:'noGps',                label:'Vehicles Without GPS' },
+  { key:'driversByLocation',    label:'Drivers by Location' },
+  { key:'driversByClass',       label:'Drivers by Class' },
+  { key:'driverStatus',         label:'Driver Status' },
+  { key:'driversByType',        label:'Drivers by Type' },
+  { key:'recentActivity',       label:'Recent Activity' },
+];
+
+function dashLayoutKey() { return 'agfsDashLayout_' + (currentUser?.id || 'default'); }
+function getDashLayout() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(dashLayoutKey()) || 'null');
+    if (stored && stored.order && stored.visible) return stored;
+  } catch(e) {}
+  return { order: DASHBOARD_CARDS.map(c=>c.key), visible: Object.fromEntries(DASHBOARD_CARDS.map(c=>[c.key,true])) };
+}
+function saveDashLayout(layout) { localStorage.setItem(dashLayoutKey(), JSON.stringify(layout)); }
+
+function applyDashLayout() {
+  const layout = getDashLayout();
+  const order = layout.order.filter(k => DASHBOARD_CARDS.some(c=>c.key===k));
+  DASHBOARD_CARDS.forEach(c => { if (!order.includes(c.key)) order.push(c.key); }); // any new cards added later
+  order.forEach((key, i) => {
+    const el = document.querySelector(`[data-dash-card="${key}"]`);
+    if (!el) return;
+    el.style.order = i;
+    el.style.display = layout.visible[key] === false ? 'none' : '';
+  });
+}
+
+function toggleDashCustomizeMenu() {
+  const drop = document.getElementById('dashCustomizeDrop');
+  if (!drop) return;
+  const isOpen = drop.classList.contains('open');
+  if (isOpen) { drop.classList.remove('open'); return; }
+  buildDashCustomizeMenu();
+  drop.classList.add('open');
+}
+
+function buildDashCustomizeMenu() {
+  const drop = document.getElementById('dashCustomizeDrop');
+  if (!drop) return;
+  const layout = getDashLayout();
+  const ordered = layout.order
+    .map(k => DASHBOARD_CARDS.find(c=>c.key===k))
+    .filter(Boolean)
+    .concat(DASHBOARD_CARDS.filter(c => !layout.order.includes(c.key)));
+  const items = ordered.map(c => `
+    <div class="dcust-item" draggable="true" data-key="${c.key}"
+      ondragstart="dcustDragStart(event)" ondragover="dcustDragOver(event)" ondrop="dcustDrop(event)" ondragend="dcustDragEnd(event)">
+      <span class="drag-handle">⠿</span>
+      <input type="checkbox" ${layout.visible[c.key]!==false?'checked':''} onchange="toggleDashCard('${c.key}',this.checked)">
+      <span style="flex:1;font-size:12px;">${c.label}</span>
+    </div>`).join('');
+  drop.innerHTML = `<div class="dash-customize-hd">Show / Hide · Drag to Reorder</div>${items}
+    <div style="padding:8px 14px 4px;"><button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;font-size:11px;" onclick="resetDashLayout()">↺ Reset to Default</button></div>`;
+}
+
+function toggleDashCard(key, checked) {
+  const layout = getDashLayout();
+  layout.visible[key] = checked;
+  saveDashLayout(layout);
+  applyDashLayout();
+}
+
+let _dashDragSrcKey = null;
+function dcustDragStart(e) { _dashDragSrcKey = e.currentTarget.dataset.key; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
+function dcustDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect='move'; }
+function dcustDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function dcustDrop(e) {
+  e.preventDefault();
+  const targetKey = e.currentTarget.dataset.key;
+  if (!_dashDragSrcKey || _dashDragSrcKey === targetKey) return;
+  const layout = getDashLayout();
+  const order = layout.order.filter(k => DASHBOARD_CARDS.some(c=>c.key===k));
+  DASHBOARD_CARDS.forEach(c => { if (!order.includes(c.key)) order.push(c.key); });
+  const fromIdx = order.indexOf(_dashDragSrcKey);
+  const toIdx = order.indexOf(targetKey);
+  if (fromIdx < 0 || toIdx < 0) return;
+  order.splice(fromIdx, 1);
+  order.splice(toIdx, 0, _dashDragSrcKey);
+  layout.order = order;
+  saveDashLayout(layout);
+  _dashDragSrcKey = null;
+  buildDashCustomizeMenu();
+  applyDashLayout();
+}
+
+function resetDashLayout() {
+  localStorage.removeItem(dashLayoutKey());
+  buildDashCustomizeMenu();
+  applyDashLayout();
+}
+
+document.addEventListener('click', (e) => {
+  const drop = document.getElementById('dashCustomizeDrop');
+  if (drop && drop.classList.contains('open') && !e.target.closest('.dash-customize-wrap') && !e.target.closest('[onclick="toggleDashCustomizeMenu()"]')) {
+    drop.classList.remove('open');
+  }
+});
+
 function renderDashboard() {
   const grp = (arr, key) => arr.reduce((a,v) => { const k=v[key]||'Unset'; a[k]=(a[k]||0)+1; return a; }, {});
 
@@ -2304,6 +2417,7 @@ function renderDashboard() {
         <div style="font-size:10px;color:#c4b8d9;flex-shrink:0;">${fmtDisplayDateTime(h.time)}</div>
       </div>`).join('') || '<div style="text-align:center;color:#9b8bb8;font-size:12px;padding:24px;">No activity yet.</div>';
   }
+  applyDashLayout();
 }
 
 function fleetFilterRegion(region) {
