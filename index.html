@@ -792,7 +792,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
     <!-- Upload card -->
     <div class="card" style="margin-bottom:16px;">
-      <div class="card-head"><h3>📤 Upload Monthly Fuel File</h3></div>
+      <div class="card-head"><h3>📤 Upload Monthly Fuel File</h3><div class="spacer"></div><a href="#" onclick="downloadFuelTemplate(event)" style="color:var(--blue);font-size:12px;font-weight:700;">⬇ Download Template</a></div>
       <div style="padding:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
         <div class="fg" style="margin:0;">
           <label>Month Covered *</label>
@@ -3379,6 +3379,17 @@ function handleFuelFile(input) {
   };
   if (file.name.toLowerCase().endsWith('.csv')) reader.readAsText(file);
   else reader.readAsArrayBuffer(file);
+}
+
+function downloadFuelTemplate(e) {
+  if (e) e.preventDefault();
+  const sample = vehicles.filter(v => v.status === 'Active').slice(0, 3).map(v => v.plate);
+  const headers = ['Plate', 'Litres', 'Cost (AED)'];
+  const rows = sample.length
+    ? sample.map(p => [p, '', ''])
+    : [['DXB-12345','',''], ['AUH-67890','','']]; // fallback example plates if fleet is empty
+  const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+  dl('AGFS_Fuel_Upload_Template.csv', csv, 'text/csv');
 }
 
 function findCol(row, candidates) {
