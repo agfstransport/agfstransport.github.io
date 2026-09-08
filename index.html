@@ -180,6 +180,15 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pi
 .dcust-item input{accent-color:var(--pink);width:14px;height:14px;}
 .dcust-item .drag-handle{color:#94a3b8;cursor:grab;font-size:14px;flex-shrink:0;}
 .dcust-item.dragging{opacity:0.4;}
+.fmsel-wrap{position:relative;display:inline-block;}
+.fmsel-btn{padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:110px;justify-content:space-between;color:var(--text);}
+.fmsel-btn.active{border-color:var(--pink);background:#fff0f6;color:var(--pink);font-weight:700;}
+.fmsel-drop{position:absolute;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);z-index:600;min-width:190px;max-height:280px;overflow-y:auto;padding:6px 0;display:none;}
+.fmsel-drop.open{display:block;}
+.fmsel-item{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;cursor:pointer;}
+.fmsel-item:hover{background:#f5f8ff;}
+.fmsel-item input{accent-color:var(--pink);width:13px;height:13px;}
+.fmsel-clear{padding:6px 12px;font-size:11px;color:var(--blue);cursor:pointer;border-top:1px solid var(--border);margin-top:4px;}
 .col-toggle-drop.open{display:block;}
 .col-toggle-item{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;font-size:12px;color:var(--text);user-select:none;}
 .col-toggle-item:hover{background:#f5f8ff;}
@@ -597,28 +606,11 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="filters">
         <input type="text" class="search-box" id="fleetSearch" placeholder="Search plate, driver, ID, category, owner…" oninput="fleetPage=1;renderFleet()">
         <input type="text" class="search-box" id="fleetJobCode" placeholder="Job Code…" oninput="fleetPage=1;renderFleet()" style="max-width:120px;">
-        <select id="fleetStatus" onchange="renderFleet()">
-          <option value="">All Status</option>
-          <option>Active</option>
-          <option>Under Maintenance</option>
-          <option>Total Loss</option>
-          <option>De-fleet</option>
-          <option>Idle</option>
-          <option>Adhoc</option>
-          <option>Accident</option>
-          <option>Off Hire</option>
-          <option>Replacement Veh Received</option>
-          <option>Permanent Replacement Veh Received</option>
-          <option value="__unset__">— No Status Set —</option>
-        </select>
-        <select id="fleetCat" onchange="renderFleet()"><option value="">All Categories</option></select>
-        <select id="fleetOwn" onchange="renderFleet()"><option value="">Own / Rental</option></select>
-        <select id="fleetRegion" onchange="renderFleet()"><option value="">All Regions</option></select>
-        <select id="fleetUtil" onchange="renderFleet()">
-          <option value="">All Utilization</option>
-          <option value="Passenger">Passenger</option>
-          <option value="Operations">Operations</option>
-        </select>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-status" onclick="toggleFleetMsel('status')">All Status ▾</button><div class="fmsel-drop" id="fmselDrop-status"></div></div>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-category" onclick="toggleFleetMsel('category')">All Categories ▾</button><div class="fmsel-drop" id="fmselDrop-category"></div></div>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-own" onclick="toggleFleetMsel('own')">Own / Rental ▾</button><div class="fmsel-drop" id="fmselDrop-own"></div></div>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-region" onclick="toggleFleetMsel('region')">All Regions ▾</button><div class="fmsel-drop" id="fmselDrop-region"></div></div>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-utilization" onclick="toggleFleetMsel('utilization')">All Utilization ▾</button><div class="fmsel-drop" id="fmselDrop-utilization"></div></div>
         <button class="btn btn-ghost btn-sm" onclick="clearFleetFilters()">✕ Clear</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;" id="bulkFleetBar">
           <span class="badge b-ops" id="fleetSelCount" style="display:none;"></span>
@@ -795,13 +787,14 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="card-head"><h3>📤 Upload Monthly Fuel File</h3><div class="spacer"></div><a href="#" onclick="downloadFuelTemplate(event)" style="color:var(--blue);font-size:12px;font-weight:700;">⬇ Download Template</a></div>
       <div style="padding:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
         <div class="fg" style="margin:0;">
-          <label>Month Covered *</label>
+          <label>Month Covered <span style="color:var(--pink)">*</span></label>
           <input type="month" id="fuelUploadMonth" style="padding:8px 10px;">
         </div>
         <div class="fg" style="margin:0;">
-          <label>Excel File (.xlsx / .xls / .csv) *</label>
-          <input type="file" id="fuelFileInput" accept=".xlsx,.xls,.csv" onchange="handleFuelFile(this)">
+          <label>Excel File (.xlsx / .xls / .csv) <span style="color:var(--pink)">*</span></label>
+          <input type="file" id="fuelFileInput" accept=".xlsx,.xls,.csv">
         </div>
+        <button class="btn btn-primary btn-sm" onclick="handleFuelFile()">⬆ Upload</button>
       </div>
       <div id="fuelUploadPreview" style="display:none;padding:0 16px 16px;">
         <div id="fuelUploadSummary" style="font-size:12px;color:#475569;margin-bottom:10px;"></div>
@@ -2423,8 +2416,9 @@ function renderDashboard() {
 function fleetFilterRegion(region) {
   switchTab('fleet');
   setTimeout(() => {
-    const regionSel = document.getElementById('fleetRegion');
-    if (regionSel) { regionSel.value = region === 'Unset' ? '__unset__' : region; renderFleet(); }
+    fleetMselState.region = [region === 'Unset' ? '__unset__' : region];
+    updateFleetMselButton('region');
+    renderFleet();
   }, 50);
 }
 
@@ -2924,20 +2918,19 @@ function autoFillCategory(make) {
 function getFilteredFleet() {
   const q       = document.getElementById('fleetSearch')?.value.toLowerCase() || '';
   const jcFilter= document.getElementById('fleetJobCode')?.value.trim().toLowerCase() || '';
-  const st   = document.getElementById('fleetStatus')?.value || '';
-  const cat  = document.getElementById('fleetCat')?.value || '';
-  const own  = document.getElementById('fleetOwn')?.value || '';
-  const reg  = document.getElementById('fleetRegion')?.value || '';
-  const util = document.getElementById('fleetUtil')?.value || '';
+  const matchMsel = (key, val) => {
+    const sel = fleetMselState[key];
+    if (!sel.length) return true;
+    if (sel.includes('__unset__') && !val) return true;
+    return sel.includes(val);
+  };
   const regExpCols = (dashboardQuickFilter?.scope === 'fleet-reg') ? getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label)) : [];
   return vehicles.filter(v => {
-    if (st === '__unset__' && v.status) return false;
-    if (st && st !== '__unset__' && v.status !== st) return false;
-    if (cat  && v.category    !== cat)  return false;
-    if (own  && v.own         !== own)  return false;
-    if (reg === '__unset__' && v.region) return false;
-    if (reg && reg !== '__unset__' && v.region !== reg) return false;
-    if (util && v.utilization !== util) return false;
+    if (!matchMsel('status', v.status)) return false;
+    if (!matchMsel('category', v.category)) return false;
+    if (!matchMsel('own', v.own)) return false;
+    if (!matchMsel('region', v.region)) return false;
+    if (!matchMsel('utilization', v.utilization)) return false;
     if (jcFilter && !(v.job_code||'').toLowerCase().includes(jcFilter)) return false;
     if (q && ![v.plate,v.make,v.end_user,v.region,v.remarks,v.reg,v.category,v.owner,v.job_code,v.designation].join(' ').toLowerCase().includes(q)) return false;
     if (dashboardQuickFilter?.scope === 'fleet-gps' && gpsGroupKey(v) !== dashboardQuickFilter.mode) return false;
@@ -3013,25 +3006,86 @@ function renderFleet() {
   renderPagination('fleetPagination', fleetPage, totalPages, 'function(p){fleetPage=p;renderFleet()}');
 }
 
+// ── Fleet Master multi-select filters ──────────────────────────
+const FLEET_MSEL_FIELD = { status:'status', category:'category', own:'own', region:'region', utilization:'utilization' };
+const FLEET_MSEL_DEFAULT_LABEL = { status:'All Status', category:'All Categories', own:'Own / Rental', region:'All Regions', utilization:'All Utilization' };
+let fleetMselState = { status:[], category:[], own:[], region:[], utilization:[] };
+
+function toggleFleetMsel(key) {
+  const drop = document.getElementById('fmselDrop-' + key);
+  if (!drop) return;
+  const isOpen = drop.classList.contains('open');
+  document.querySelectorAll('.fmsel-drop').forEach(d => d.classList.remove('open'));
+  if (!isOpen) drop.classList.add('open');
+}
+
+function buildFleetMselDrop(key, options) {
+  const drop = document.getElementById('fmselDrop-' + key);
+  if (!drop) return;
+  const sel = fleetMselState[key];
+  const items = options.map(opt => {
+    const val = typeof opt === 'object' ? opt.value : opt;
+    const label = typeof opt === 'object' ? opt.label : opt;
+    const safeVal = String(val).replace(/'/g, "\\'");
+    return `<label class="fmsel-item"><input type="checkbox" ${sel.includes(val)?'checked':''} onchange="toggleFleetMselOption('${key}','${safeVal}',this.checked)"> ${label}</label>`;
+  }).join('');
+  drop.innerHTML = items + (sel.length ? `<div class="fmsel-clear" onclick="clearFleetMsel('${key}')">✕ Clear this filter</div>` : '');
+}
+
+function toggleFleetMselOption(key, value, checked) {
+  const sel = fleetMselState[key];
+  if (checked) { if (!sel.includes(value)) sel.push(value); }
+  else { fleetMselState[key] = sel.filter(v => v !== value); }
+  fleetPage = 1;
+  updateFleetMselButton(key);
+  renderFleet();
+}
+
+function clearFleetMsel(key) {
+  fleetMselState[key] = [];
+  fleetPage = 1;
+  document.getElementById('fmselDrop-' + key)?.classList.remove('open');
+  updateFleetMselButton(key);
+  renderFleet();
+}
+
+function updateFleetMselButton(key) {
+  const btn = document.getElementById('fmselBtn-' + key);
+  if (!btn) return;
+  const sel = fleetMselState[key];
+  const defaultLabel = FLEET_MSEL_DEFAULT_LABEL[key];
+  if (!sel.length) { btn.textContent = defaultLabel + ' ▾'; btn.classList.remove('active'); }
+  else if (sel.length === 1) { btn.textContent = (sel[0]==='__unset__'?'— Unset —':sel[0]) + ' ▾'; btn.classList.add('active'); }
+  else { btn.textContent = sel.length + ' selected ▾'; btn.classList.add('active'); }
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.fmsel-wrap')) document.querySelectorAll('.fmsel-drop').forEach(d => d.classList.remove('open'));
+});
+
 function populateFleetFilters() {
   const cats = [...new Set(vehicles.map(v=>v.category).filter(Boolean))].sort();
   const owns = [...new Set(vehicles.map(v=>v.own).filter(Boolean))].sort();
   const regs = [...new Set(vehicles.map(v=>v.region).filter(Boolean))].sort();
-  const setCatEl = document.getElementById('fleetCat');
-  const cur = setCatEl.value;
-  setCatEl.innerHTML = '<option value="">All Categories</option>' + cats.map(c=>`<option ${c===cur?'selected':''}>${c}</option>`).join('');
-  const setOwnEl = document.getElementById('fleetOwn');
-  const curo = setOwnEl.value;
-  setOwnEl.innerHTML = '<option value="">Own / Rental</option>' + owns.map(o=>`<option ${o===curo?'selected':''}>${o}</option>`).join('');
-  const setRegEl = document.getElementById('fleetRegion');
-  const curr = setRegEl.value;
-  setRegEl.innerHTML = '<option value="">All Regions</option>' +
-    regs.map(r=>`<option value="${r}" ${r===curr?'selected':''}>${r}</option>`).join('') +
-    (vehicles.some(v=>!v.region) ? `<option value="__unset__" ${curr==='__unset__'?'selected':''}>— No Region Set —</option>` : '');
+  const statuses = [...new Set(vehicles.map(v=>v.status).filter(Boolean))].sort();
+  const utils = [...new Set(vehicles.map(v=>v.utilization).filter(Boolean))].sort();
+
+  buildFleetMselDrop('status', [...statuses, ...(vehicles.some(v=>!v.status)?[{value:'__unset__',label:'— No Status Set —'}]:[])]);
+  buildFleetMselDrop('category', cats);
+  buildFleetMselDrop('own', owns);
+  buildFleetMselDrop('region', [...regs, ...(vehicles.some(v=>!v.region)?[{value:'__unset__',label:'— No Region Set —'}]:[])]);
+  buildFleetMselDrop('utilization', utils);
+  Object.keys(fleetMselState).forEach(updateFleetMselButton);
 }
 
 function sortFleet(f) { if(fleetSort.f===f) fleetSort.d*=-1; else { fleetSort.f=f; fleetSort.d=1; } fleetPage=1; renderFleet(); }
-function clearFleetFilters() { fleetPage=1; ['fleetSearch','fleetJobCode','fleetStatus','fleetCat','fleetOwn','fleetRegion','fleetUtil'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); renderFleet(); }
+function clearFleetFilters() {
+  fleetPage=1;
+  ['fleetSearch','fleetJobCode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  Object.keys(fleetMselState).forEach(k => { fleetMselState[k] = []; updateFleetMselButton(k); });
+  dashboardQuickFilter = null;
+  renderFleet();
+}
 
 function updateFleetSel() {
   const chk = document.querySelectorAll('.fcb:checked');
@@ -3081,7 +3135,8 @@ async function bulkFleetStatus(status) {
 
 function fleetFilter(status) {
   switchTab('fleet');
-  document.getElementById('fleetStatus').value = status;
+  fleetMselState.status = [status];
+  updateFleetMselButton('status');
   fleetPage = 1;
   renderFleet();
 }
@@ -3090,31 +3145,36 @@ function fleetFilter(status) {
 function dashFleetStatus(status) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetStatus').value = status === 'Unset' ? '__unset__' : status;
+  fleetMselState.status = [status === 'Unset' ? '__unset__' : status];
+  updateFleetMselButton('status');
   fleetPage = 1; renderFleet();
 }
 function dashFleetCategory(cat) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetCat').value = cat;
+  fleetMselState.category = [cat];
+  updateFleetMselButton('category');
   fleetPage = 1; renderFleet();
 }
 function dashFleetOwnership(own) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetOwn').value = own;
+  fleetMselState.own = [own];
+  updateFleetMselButton('own');
   fleetPage = 1; renderFleet();
 }
 function dashFleetRegion(region) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetRegion').value = region;
+  fleetMselState.region = [region];
+  updateFleetMselButton('region');
   fleetPage = 1; renderFleet();
 }
 function dashFleetUtil(util) {
   switchTab('fleet');
   clearFleetFilters();
-  document.getElementById('fleetUtil').value = util;
+  fleetMselState.utilization = [util];
+  updateFleetMselButton('utilization');
   fleetPage = 1; renderFleet();
 }
 function dashDriverStatus(status) {
@@ -3347,11 +3407,12 @@ function clearAllUnmatchedFuel() {
 
 let _fuelParsedRows = null; // rows staged for import after file parse, before confirm
 
-function handleFuelFile(input) {
-  const file = input.files[0];
-  if (!file) return;
+function handleFuelFile() {
   const monthKey = document.getElementById('fuelUploadMonth').value;
-  if (!monthKey) { alert('Please choose the month this file covers first.'); input.value = ''; return; }
+  if (!monthKey) { alert('⚠ Please select the Month Covered before uploading — this is required.'); return; }
+  const input = document.getElementById('fuelFileInput');
+  const file = input.files[0];
+  if (!file) { alert('⚠ Please choose a file to upload.'); return; }
 
   const reader = new FileReader();
   reader.onload = (e) => {
