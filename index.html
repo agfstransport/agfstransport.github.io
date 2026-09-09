@@ -825,6 +825,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option value="cost">Cost (AED)</option>
         </select>
         <button class="btn btn-ghost btn-sm" id="fuelMonthWiseBtn" onclick="toggleFuelMonthWise()" style="gap:5px;">📅 Month-wise View</button>
+        <button class="btn btn-danger btn-sm admin-only" onclick="deleteFuelMonthData()" title="Delete all fuel data for the selected month">🗑 Delete Month Data</button>
         <button class="btn btn-primary btn-sm" onclick="exportFuelReportColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFuelReportCSV()">⬇ Export CSV</button>
       </div>
@@ -3566,6 +3567,41 @@ function monthLabel(monthKey) {
   const [y,m] = monthKey.split('-');
   const d = new Date(parseInt(y), parseInt(m)-1, 1);
   return d.toLocaleString('en-US', { month:'long', year:'numeric' });
+}
+
+async function deleteFuelMonthData() {
+  if (currentUser?.role !== 'admin') return;
+  const monthKey = document.getElementById('fuelReportMonth')?.value;
+  if (!monthKey) { alert('No month selected.'); return; }
+
+  const affected = vehicles.filter(v => getVehicleFuelHistory(v)[monthKey]);
+  const unmatched = getUnmatchedFuelRecords().filter(r => r.monthKey === monthKey);
+
+  if (!affected.length && !unmatched.length) { alert(`No fuel data found for ${monthLabel(monthKey)}.`); return; }
+
+  if (!confirm(`Delete ALL fuel data for ${monthLabel(monthKey)}?\n\nThis will remove it from ${affected.length} vehicle(s)${unmatched.length ? ` and ${unmatched.length} unmatched record(s)` : ''}.\n\nThis cannot be undone.`)) return;
+
+  for (const v of affected) {
+    const hist = getVehicleFuelHistory(v);
+    delete hist[monthKey];
+    v.fuel_history = JSON.stringify(hist);
+    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+  }
+  persistVehicles();
+
+  if (unmatched.length) {
+    const remaining = getUnmatchedFuelRecords().filter(r => r.monthKey !== monthKey);
+    saveUnmatchedFuelRecords(remaining);
+  }
+
+  logChange('fleet','Updated','FUEL_DELETE',`Deleted fuel data for ${monthLabel(monthKey)}: ${affected.length} vehicles, ${unmatched.length} unmatched records`,[
+    {field:'fuel_history', label:'Fuel Deletion', oldVal:`${affected.length} vehicles had data`, newVal:'Removed'}
+  ]);
+
+  populateFuelMonthDropdown();
+  renderFuelReport();
+  renderFuelUnmatched();
+  showSuccessToast(`✅ Deleted fuel data for ${monthLabel(monthKey)}`, 4000);
 }
 
 function populateFuelMonthDropdown() {
