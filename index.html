@@ -1011,6 +1011,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <option>Western Region</option>
         </select></div>
         <div class="fg"><label>Job Code <span style="color:var(--pink)">*</span></label><input type="text" id="v-job_code"></div>
+        <div class="fg" id="vfg-assigned_project"><label>Vehicle Assigned Project</label><input type="text" id="v-assigned_project" placeholder="e.g. Project name / Client site"></div>
         <div class="fg" id="vfg-gps_rfid"><label>GPS / RFID</label><select id="v-gps_rfid">
           <option value="">— Select —</option>
           <option>GPS</option>
@@ -2605,6 +2606,7 @@ const FLEET_COLS = [
   { key:'monthly_cost',label:'Monthly Cost',def:false },
   { key:'contract',    label:'Contract',    def:false },
   { key:'remarks',     label:'Remarks',     def:false },
+  { key:'assigned_project', label:'Vehicle Assigned Project', def:true },
 ];
 
 const DRIVER_COLS = [
@@ -3933,7 +3935,7 @@ function clearDriverFilters() {
 // ═══════════════════════════════════════════
 // VEHICLE MODAL
 // ═══════════════════════════════════════════
-const vFields = ['plate','reg','make','category','own','owner','portal','monthly_cost','end_user','end_user_id','designation','contract','phone','region','job_code','gps_rfid','utilization','status','remarks'];
+const vFields = ['plate','reg','make','category','own','owner','portal','monthly_cost','end_user','end_user_id','designation','contract','phone','region','job_code','gps_rfid','utilization','status','remarks','assigned_project'];
 
 const ADMIN_VEHICLE_FIELDS = ['plate','reg','make','category','own','owner','portal','monthly_cost'];
 const OPS_VEHICLE_FIELDS   = ['status','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','utilization','remarks'];
@@ -4119,7 +4121,8 @@ const FLEET_FIELD_LABELS = {
   own:'Own/Rental', owner:'Owner', portal:'Fuel Company', monthly_cost:'Monthly Cost',
   end_user:'End User', end_user_id:'End User ID', designation:'Designation',
   contract:'Contract', phone:'Phone', region:'Region', job_code:'Job Code',
-  gps_rfid:'GPS/RFID', utilization:'Utilization', status:'Status', remarks:'Remarks'
+  gps_rfid:'GPS/RFID', utilization:'Utilization', status:'Status', remarks:'Remarks',
+  assigned_project:'Vehicle Assigned Project'
 };
 const DRIVER_FIELD_LABELS = {
   name:'Name', driver_id:'Employee ID', contact:'Contact', vehicle_plate:'Vehicle Plate',
