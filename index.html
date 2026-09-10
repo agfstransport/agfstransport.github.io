@@ -611,6 +611,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-own" onclick="toggleFleetMsel('own')">Own / Rental ▾</button><div class="fmsel-drop" id="fmselDrop-own"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-region" onclick="toggleFleetMsel('region')">All Regions ▾</button><div class="fmsel-drop" id="fmselDrop-region"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-utilization" onclick="toggleFleetMsel('utilization')">All Utilization ▾</button><div class="fmsel-drop" id="fmselDrop-utilization"></div></div>
+        <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-assigned_project" onclick="toggleFleetMsel('assigned_project')">All Projects ▾</button><div class="fmsel-drop" id="fmselDrop-assigned_project"></div></div>
         <button class="btn btn-ghost btn-sm" onclick="clearFleetFilters()">✕ Clear</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;" id="bulkFleetBar">
           <span class="badge b-ops" id="fleetSelCount" style="display:none;"></span>
@@ -2934,6 +2935,7 @@ function getFilteredFleet() {
     if (!matchMsel('own', v.own)) return false;
     if (!matchMsel('region', v.region)) return false;
     if (!matchMsel('utilization', v.utilization)) return false;
+    if (!matchMsel('assigned_project', v.assigned_project)) return false;
     if (jcFilter && !(v.job_code||'').toLowerCase().includes(jcFilter)) return false;
     if (q && ![v.plate,v.make,v.end_user,v.region,v.remarks,v.reg,v.category,v.owner,v.job_code,v.designation].join(' ').toLowerCase().includes(q)) return false;
     if (dashboardQuickFilter?.scope === 'fleet-gps' && gpsGroupKey(v) !== dashboardQuickFilter.mode) return false;
@@ -3010,9 +3012,9 @@ function renderFleet() {
 }
 
 // ── Fleet Master multi-select filters ──────────────────────────
-const FLEET_MSEL_FIELD = { status:'status', category:'category', own:'own', region:'region', utilization:'utilization' };
-const FLEET_MSEL_DEFAULT_LABEL = { status:'All Status', category:'All Categories', own:'Own / Rental', region:'All Regions', utilization:'All Utilization' };
-let fleetMselState = { status:[], category:[], own:[], region:[], utilization:[] };
+const FLEET_MSEL_FIELD = { status:'status', category:'category', own:'own', region:'region', utilization:'utilization', assigned_project:'assigned_project' };
+const FLEET_MSEL_DEFAULT_LABEL = { status:'All Status', category:'All Categories', own:'Own / Rental', region:'All Regions', utilization:'All Utilization', assigned_project:'All Projects' };
+let fleetMselState = { status:[], category:[], own:[], region:[], utilization:[], assigned_project:[] };
 
 function toggleFleetMsel(key) {
   const drop = document.getElementById('fmselDrop-' + key);
@@ -3072,12 +3074,14 @@ function populateFleetFilters() {
   const regs = [...new Set(vehicles.map(v=>v.region).filter(Boolean))].sort();
   const statuses = [...new Set(vehicles.map(v=>v.status).filter(Boolean))].sort();
   const utils = [...new Set(vehicles.map(v=>v.utilization).filter(Boolean))].sort();
+  const projects = [...new Set(vehicles.map(v=>v.assigned_project).filter(Boolean))].sort();
 
   buildFleetMselDrop('status', [...statuses, ...(vehicles.some(v=>!v.status)?[{value:'__unset__',label:'— No Status Set —'}]:[])]);
   buildFleetMselDrop('category', cats);
   buildFleetMselDrop('own', owns);
   buildFleetMselDrop('region', [...regs, ...(vehicles.some(v=>!v.region)?[{value:'__unset__',label:'— No Region Set —'}]:[])]);
   buildFleetMselDrop('utilization', utils);
+  buildFleetMselDrop('assigned_project', [...projects, ...(vehicles.some(v=>!v.assigned_project)?[{value:'__unset__',label:'— No Project Set —'}]:[])]);
   Object.keys(fleetMselState).forEach(updateFleetMselButton);
 }
 
