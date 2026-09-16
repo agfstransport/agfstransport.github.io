@@ -3024,17 +3024,38 @@ function toggleFleetMsel(key) {
   if (!isOpen) drop.classList.add('open');
 }
 
+let fleetMselOptionsCache = {};
+function getFleetMselOptions(key) { return fleetMselOptionsCache[key] || []; }
+function getFleetMselAllValues(key) { return getFleetMselOptions(key).map(opt => typeof opt === 'object' ? opt.value : opt); }
+
 function buildFleetMselDrop(key, options) {
+  fleetMselOptionsCache[key] = options;
   const drop = document.getElementById('fmselDrop-' + key);
   if (!drop) return;
   const sel = fleetMselState[key];
+  const allVals = options.map(opt => typeof opt === 'object' ? opt.value : opt);
+  const allSelected = allVals.length > 0 && allVals.every(v => sel.includes(v));
+  const selectAllRow = allVals.length
+    ? `<label class="fmsel-item" style="font-weight:700;border-bottom:1px solid var(--border);margin-bottom:2px;padding-bottom:8px;">
+        <input type="checkbox" ${allSelected?'checked':''} onchange="toggleFleetMselAll('${key}',this.checked)"> Select All
+      </label>`
+    : '';
   const items = options.map(opt => {
     const val = typeof opt === 'object' ? opt.value : opt;
     const label = typeof opt === 'object' ? opt.label : opt;
     const safeVal = String(val).replace(/'/g, "\\'");
     return `<label class="fmsel-item"><input type="checkbox" ${sel.includes(val)?'checked':''} onchange="toggleFleetMselOption('${key}','${safeVal}',this.checked)"> ${label}</label>`;
   }).join('');
-  drop.innerHTML = items + (sel.length ? `<div class="fmsel-clear" onclick="clearFleetMsel('${key}')">✕ Clear this filter</div>` : '');
+  drop.innerHTML = selectAllRow + items + (sel.length ? `<div class="fmsel-clear" onclick="clearFleetMsel('${key}')">✕ Clear this filter</div>` : '');
+}
+
+function toggleFleetMselAll(key, checked) {
+  fleetMselState[key] = checked ? getFleetMselAllValues(key) : [];
+  fleetPage = 1;
+  updateFleetMselButton(key);
+  buildFleetMselDrop(key, getFleetMselOptions(key));
+  document.getElementById('fmselDrop-' + key)?.classList.add('open');
+  renderFleet();
 }
 
 function toggleFleetMselOption(key, value, checked) {
