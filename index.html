@@ -1552,13 +1552,13 @@ function startApp() {
   else loadData();
   checkConnection(false);
   if (window._connInterval) clearInterval(window._connInterval);
-  window._connInterval = setInterval(() => checkConnection(false), 30000); // re-check every 30s
+  window._connInterval = setInterval(() => checkConnection(false), 2 * 60 * 1000); // re-check every 2 min
   // Sync notifications every 2 minutes so submitters see approval/rejection promptly
   if (window._notifInterval) clearInterval(window._notifInterval);
-  window._notifInterval = setInterval(() => syncNotificationsFromSheet(), 2 * 60 * 1000);
+  window._notifInterval = setInterval(() => syncNotificationsFromSheet(), 5 * 60 * 1000);
   // Auto-refresh data from Sheet every 5 minutes
   if (window._dataRefreshInterval) clearInterval(window._dataRefreshInterval);
-  window._dataRefreshInterval = setInterval(() => { if (GAS_URL) loadData().then(renderAll); }, 5 * 60 * 1000);
+  window._dataRefreshInterval = setInterval(() => { if (GAS_URL) loadData().then(renderAll); }, 15 * 60 * 1000);
 
   renderUsers();
 }
@@ -1789,16 +1789,16 @@ function hideSavingIndicator() {
   _apiPostInFlight = Math.max(0, _apiPostInFlight - 1);
   if (_apiPostInFlight === 0) document.getElementById('savingIndicator')?.classList.remove('show');
 }
-async function apiPost(body) {
+async function apiPost(body, silent) {
   if (!GAS_URL) return null;
-  showSavingIndicator();
+  if (!silent) showSavingIndicator();
   try {
     // Use text/plain to avoid CORS preflight (Apps Script doesn't handle OPTIONS preflight properly).
     // Apps Script's doPost still parses this fine via JSON.parse(e.postData.contents).
     const r = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
     return await r.json();
   } catch(e) { console.error(e); return null; }
-  finally { hideSavingIndicator(); }
+  finally { if (!silent) hideSavingIndicator(); }
 }
 
 // ═══════════════════════════════════════════
@@ -4931,7 +4931,7 @@ async function syncNotificationsFromSheet() {
         saveNotifications(currentUser.id, merged);
         updateNotifBadge();
         // Clear them from the Sheet now that we've received them
-        apiPost({ action:'clear_notifications', userId: currentUser.id });
+        apiPost({ action:'clear_notifications', userId: currentUser.id }, true);
       }
     }
   } catch(e) { console.warn('Notification sync failed:', e); }
@@ -4961,7 +4961,7 @@ function pushNotification(userId, title, message, type) {
   // If notifying a different user (cross-device), save to Sheet
   if (GAS_URL && userId !== currentUser?.id) {
     apiPost({ action:'push_notification', userId, title, message, type,
-      timestamp: new Date().toISOString() });
+      timestamp: new Date().toISOString() }, true);
   }
   if (!userId) return;
   const notifs = getNotifications(userId);
