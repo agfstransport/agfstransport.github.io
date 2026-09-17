@@ -3595,12 +3595,13 @@ async function confirmFuelImport() {
   persistVehicles();
   renderFleet(); // reflect locally right away
 
-  // Save sequentially and WAIT for each Sheet write to confirm — firing all of these at once
-  // overwhelms Apps Script's concurrency limits and can silently fail or hang for a long time.
+  // One batch request for all touched vehicles — dramatically faster and more reliable than
+  // saving each one individually, and avoids overwhelming Apps Script with either too many
+  // concurrent requests or a very long sequential queue.
   let saveFailures = 0;
-  for (const v of touchedVehicles) {
-    const result = await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
-    if (!result) saveFailures++;
+  if (touchedVehicles.length) {
+    const result = await apiPost({ action:'batch_upsert', records:touchedVehicles, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    if (!result) saveFailures = touchedVehicles.length;
   }
 
   if (unmatchedRows.length) {
@@ -3644,11 +3645,11 @@ async function deleteAllFuelData() {
   const typed = prompt(`To confirm, type DELETE ALL (exactly, in capital letters):`);
   if (typed !== 'DELETE ALL') { alert('Confirmation text did not match — nothing was deleted.'); return; }
 
-  for (const v of affected) {
-    delete v.fuel_history;
-    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
-  }
+  affected.forEach(v => delete v.fuel_history);
   persistVehicles();
+  if (affected.length) {
+    await apiPost({ action:'batch_upsert', records:affected, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+  }
   saveUnmatchedFuelRecords([]);
 
   logChange('fleet','Updated','FUEL_DELETE_ALL',`Deleted ALL fuel data: ${affected.length} vehicles cleared, ${unmatchedCount} unmatched records removed`,[
@@ -3673,13 +3674,15 @@ async function deleteFuelMonthData() {
 
   if (!confirm(`Delete ALL fuel data for ${monthLabel(monthKey)}?\n\nThis will remove it from ${affected.length} vehicle(s)${unmatched.length ? ` and ${unmatched.length} unmatched record(s)` : ''}.\n\nThis cannot be undone.`)) return;
 
-  for (const v of affected) {
+  affected.forEach(v => {
     const hist = getVehicleFuelHistory(v);
     delete hist[monthKey];
     v.fuel_history = JSON.stringify(hist);
-    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
-  }
+  });
   persistVehicles();
+  if (affected.length) {
+    await apiPost({ action:'batch_upsert', records:affected, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+  }
 
   if (unmatched.length) {
     const remaining = getUnmatchedFuelRecords().filter(r => r.monthKey !== monthKey);
@@ -5746,11 +5749,9 @@ async function backfillVehicleIDs() {
   missing.forEach(v => { v.vehicle_uid = generateVehicleUID(); });
   persistVehicles();
   renderFleet(); // show the new IDs locally right away
-  // Save each one and WAIT for the Sheet to confirm before moving on — sequential, not fire-and-forget,
-  // so a Sync right after this finishes can never pull stale data and wipe out what was just assigned.
-  for (const v of missing) {
-    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
-  }
+  // One batch request for all vehicles — fast and reliable, no more grinding through
+  // hundreds of individual sequential saves.
+  await apiPost({ action:'batch_upsert', records:missing, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
   logChange('fleet','Updated','BULK',`Backfilled Vehicle IDs for ${missing.length} vehicles`,[
     {field:'vehicle_uid', label:'Vehicle ID Backfill', oldVal:'—', newVal:`${missing.length} vehicles assigned AG#### IDs`}
   ]);
