@@ -3435,6 +3435,29 @@ function clearAllUnmatchedFuel() {
 
 let _fuelParsedRows = null; // rows staged for import after file parse, before confirm
 
+// Parses one CSV line respecting quoted fields — a naive split(',') breaks on any comma inside a
+// quoted value, e.g. a thousand-separated cost like "1,423.14", silently truncating it to "1" and
+// shifting every column after it. This handles quotes, escaped "" inside quotes, and commas correctly.
+function parseCSVLine(line) {
+  const out = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i+1] === '"') { cur += '"'; i++; }
+        else inQuotes = false;
+      } else cur += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { out.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
 function handleFuelFile() {
   const monthKey = document.getElementById('fuelUploadMonth').value;
   if (!monthKey) { alert('⚠ Please select the Month Covered before uploading — this is required.'); return; }
@@ -3449,9 +3472,9 @@ function handleFuelFile() {
       if (file.name.toLowerCase().endsWith('.csv')) {
         const text = e.target.result;
         const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
-        const headers = lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+        const headers = parseCSVLine(lines[0]).map(h=>h.replace(/"/g,''));
         rows = lines.slice(1).map(line => {
-          const vals = line.split(',').map(v=>v.trim().replace(/^"|"$/g,''));
+          const vals = parseCSVLine(line);
           const obj = {}; headers.forEach((h,i)=>obj[h]=vals[i]||''); return obj;
         });
       } else {
@@ -3763,11 +3786,13 @@ function renderFuelReport() {
   const totalLitres = withFuel.reduce((s,r)=>s+r.litres,0);
   const totalCost = withFuel.reduce((s,r)=>s+r.cost,0);
   const noFuelCount = vehicles.filter(v => { const h=getVehicleFuelHistory(v); return !h[monthKey] && v.status!=='De-fleet' && v.status!=='Total Loss'; }).length;
+  const notRegisteredCount = getUnmatchedFuelRecords().filter(r => r.monthKey === monthKey).length;
   summaryEl.innerHTML = `
     <div><div style="font-size:11px;color:#94a3b8;">Total Litres</div><div style="font-size:18px;font-weight:700;">${totalLitres.toLocaleString()}</div></div>
     <div><div style="font-size:11px;color:#94a3b8;">Total Cost (AED)</div><div style="font-size:18px;font-weight:700;">${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>
-    <div><div style="font-size:11px;color:#94a3b8;">Vehicles with Fuel Data</div><div style="font-size:18px;font-weight:700;">${withFuel.length}</div></div>
-    <div><div style="font-size:11px;color:#dc2626;">⚠ No Fuel Data (active fleet)</div><div style="font-size:18px;font-weight:700;color:#dc2626;">${noFuelCount}</div></div>
+    <div><div style="font-size:11px;color:#15803d;">✓ With Fuel Data</div><div style="font-size:18px;font-weight:700;color:#15803d;">${withFuel.length}</div></div>
+    <div><div style="font-size:11px;color:#dc2626;">⚠ Without Fuel Data (active fleet)</div><div style="font-size:18px;font-weight:700;color:#dc2626;">${noFuelCount}</div></div>
+    <div><div style="font-size:11px;color:#b45309;">⚠ Not Registered (Unmatched Plates)</div><div style="font-size:18px;font-weight:700;color:#b45309;">${notRegisteredCount}</div></div>
   `;
 }
 
@@ -6111,7 +6136,7 @@ function previewPermitImport(input) {
   reader.onload = e => {
     const lines = e.target.result.split(/\r?\n/).filter(Boolean);
     if (lines.length < 2) return;
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase());
+    const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g,'').toLowerCase());
     const required = ['ref','permitno']; // Only the match key is required — other fields are optional so partial bulk-updates work
     const missing = required.filter(r => !headers.some(h => h.replace(/[_ ]/g,'') === r.replace(/[_ ]/g,'')));
     if (missing.length) {
@@ -6120,7 +6145,7 @@ function previewPermitImport(input) {
       return;
     }
     _permitImportParsed = lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+      const vals = parseCSVLine(line);
       const rec = {};
       headers.forEach((h, i) => rec[h] = vals[i] || '');
       return {
@@ -6251,7 +6276,7 @@ function downloadImportTemplate(e) {
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (lines.length < 2) return { headers: [], rows: [] };
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase().replace(/ /g,'_'));
+  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g,'').toLowerCase().replace(/ /g,'_'));
   const rows = lines.slice(1).map(line => {
     const vals = [];
     let cur = '', inQ = false;
