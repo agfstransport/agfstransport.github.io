@@ -827,6 +827,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         </select>
         <button class="btn btn-ghost btn-sm" id="fuelMonthWiseBtn" onclick="toggleFuelMonthWise()" style="gap:5px;">📅 Month-wise View</button>
         <button class="btn btn-danger btn-sm admin-only" onclick="deleteFuelMonthData()" title="Delete all fuel data for the selected month">🗑 Delete Month Data</button>
+        <button class="btn btn-danger btn-sm admin-only" onclick="deleteAllFuelData()" title="Wipe fuel data for every month, every vehicle">🗑 Delete ALL Fuel Data</button>
         <button class="btn btn-primary btn-sm" onclick="exportFuelReportColored()">🎨 Colored Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="exportFuelReportCSV()">⬇ Export CSV</button>
       </div>
@@ -3617,6 +3618,34 @@ function monthLabel(monthKey) {
   const [y,m] = monthKey.split('-');
   const d = new Date(parseInt(y), parseInt(m)-1, 1);
   return d.toLocaleString('en-US', { month:'long', year:'numeric' });
+}
+
+async function deleteAllFuelData() {
+  if (currentUser?.role !== 'admin') return;
+  const affected = vehicles.filter(v => v.fuel_history);
+  const unmatchedCount = getUnmatchedFuelRecords().length;
+
+  if (!affected.length && !unmatchedCount) { alert('There is no fuel data to delete.'); return; }
+
+  if (!confirm(`⚠️ This will permanently delete ALL fuel data — every month, every vehicle.\n\n${affected.length} vehicle(s) will have their fuel history cleared, and ${unmatchedCount} unmatched record(s) will be removed.\n\nThis cannot be undone. Continue?`)) return;
+  const typed = prompt(`To confirm, type DELETE ALL (exactly, in capital letters):`);
+  if (typed !== 'DELETE ALL') { alert('Confirmation text did not match — nothing was deleted.'); return; }
+
+  for (const v of affected) {
+    delete v.fuel_history;
+    await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser.name, submitterId:currentUser.id } });
+  }
+  persistVehicles();
+  saveUnmatchedFuelRecords([]);
+
+  logChange('fleet','Updated','FUEL_DELETE_ALL',`Deleted ALL fuel data: ${affected.length} vehicles cleared, ${unmatchedCount} unmatched records removed`,[
+    {field:'fuel_history', label:'Full Fuel Data Wipe', oldVal:`${affected.length} vehicles had data`, newVal:'All cleared'}
+  ]);
+
+  populateFuelMonthDropdown();
+  renderFuelReport();
+  renderFuelUnmatched();
+  showSuccessToast('✅ All fuel data deleted — ready for a fresh re-upload', 4000);
 }
 
 async function deleteFuelMonthData() {
