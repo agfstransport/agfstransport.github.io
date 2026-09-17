@@ -3593,7 +3593,15 @@ async function confirmFuelImport() {
     if (!touchedVehicles.includes(v)) touchedVehicles.push(v);
   });
   persistVehicles();
-  touchedVehicles.forEach(v => apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } }));
+  renderFleet(); // reflect locally right away
+
+  // Save sequentially and WAIT for each Sheet write to confirm — firing all of these at once
+  // overwhelms Apps Script's concurrency limits and can silently fail or hang for a long time.
+  let saveFailures = 0;
+  for (const v of touchedVehicles) {
+    const result = await apiPost({ action:'upsert', record:v, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    if (!result) saveFailures++;
+  }
 
   if (unmatchedRows.length) {
     const existing = getUnmatchedFuelRecords();
@@ -3610,7 +3618,12 @@ async function confirmFuelImport() {
   document.getElementById('fuelReportMonth').value = monthKey;
   renderFuelReport();
   renderFuelUnmatched();
-  showSuccessToast(`✅ Fuel data imported — ${touchedVehicles.length} vehicles updated`, 4000);
+  if (saveFailures > 0) {
+    alert(`⚠️ ${saveFailures} of ${touchedVehicles.length} vehicle(s) failed to save to your Google Sheet. They're showing correctly here in the app, but you should click Sync in a moment and check whether this data actually landed in your Sheet — you may need to re-upload for the affected vehicles.`);
+  }
+  showSuccessToast(saveFailures > 0
+    ? `⚠️ Fuel data imported with ${saveFailures} save failure(s) — see warning`
+    : `✅ Fuel data imported — ${touchedVehicles.length} vehicles updated`, 4000);
 }
 
 function monthLabel(monthKey) {
