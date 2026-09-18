@@ -456,6 +456,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="nav-tab" data-tab="fleet" onclick="switchTab('fleet')"><span class="nav-icon">🚗</span> Fleet Master <span class="nav-cnt" id="nc-fleet">0</span></div>
     <div class="nav-tab" data-tab="drivers" onclick="switchTab('drivers')"><span class="nav-icon">👤</span> Driver Master <span class="nav-cnt" id="nc-drivers">0</span></div>
     <div class="nav-tab" data-tab="permits" onclick="switchTab('permits')"><span class="nav-icon">📜</span> Permits <span class="nav-cnt" id="nc-permits">0</span></div>
+    <div class="nav-tab" data-tab="replacement" onclick="switchTab('replacement')"><span class="nav-icon">🔄</span> Replacement <span class="nav-cnt" id="nc-replacement-alert" style="display:none;background:var(--red);color:#fff;"></span></div>
     <div class="nav-tab" data-tab="reports" onclick="switchTab('reports')"><span class="nav-icon">📋</span> Reports</div>
     <div class="nav-tab manager-up" data-tab="access" onclick="switchTab('access')"><span class="nav-icon">🔐</span> Access Control <span class="nav-cnt" id="nc-approvals" style="display:none;background:var(--red);color:#fff;"></span></div>
   </div>
@@ -610,6 +611,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-region" onclick="toggleFleetMsel('region')">All Regions ▾</button><div class="fmsel-drop" id="fmselDrop-region"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-utilization" onclick="toggleFleetMsel('utilization')">All Utilization ▾</button><div class="fmsel-drop" id="fmselDrop-utilization"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-assigned_project" onclick="toggleFleetMsel('assigned_project')">All Projects ▾</button><div class="fmsel-drop" id="fmselDrop-assigned_project"></div></div>
+        <button class="btn btn-ghost btn-sm" id="fleetReplToggleBtn" onclick="toggleFleetReplFilter()">🔄 Covered by Replacement</button>
         <button class="btn btn-ghost btn-sm" onclick="clearFleetFilters()">✕ Clear</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;" id="bulkFleetBar">
           <span class="badge b-ops" id="fleetSelCount" style="display:none;"></span>
@@ -773,6 +775,63 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
             <div class="pagination" id="driverPermitPagination"></div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPLACEMENT VEHICLE POOL & TRANSACTIONS -->
+  <div class="page" id="page-replacement">
+    <div class="section-hd"><h2>🔄 Vehicle Replacement</h2><div class="line"></div></div>
+
+    <div id="replExpiryAlert" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:16px;"></div>
+
+    <!-- Transactions -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-head">
+        <h3>📋 Replacement Transactions</h3>
+        <div class="spacer"></div>
+        <select id="replTxFilter" onchange="renderReplacementTransactions()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="">All</option>
+          <option value="Active">Active</option>
+          <option value="Expired">Expired (needs closure)</option>
+          <option value="Closed">Closed</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openReplacementTxModal()">+ New Replacement</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Main Vehicle</th><th>Replacement Vehicle</th><th>Type</th>
+            <th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="replTxBody"></tbody>
+        </table>
+        <div class="no-data" id="replTxNoData" style="display:none;">No replacement transactions yet.</div>
+      </div>
+    </div>
+
+    <!-- Pool -->
+    <div class="card">
+      <div class="card-head">
+        <h3>🚗 Replacement Vehicle Pool</h3>
+        <div class="spacer"></div>
+        <select id="replPoolFilter" onchange="renderReplacementPool()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="">All Status</option>
+          <option value="Available">Available</option>
+          <option value="Assigned">Assigned</option>
+          <option value="Expired">Expired</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openPoolVehicleModal()">+ Add Pool Vehicle</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Plate</th><th>Make/Model</th><th>Category</th><th>Own/Rental</th><th>Region</th>
+            <th>Pool Status</th><th>Currently Replacing</th><th>Type</th><th>Start</th><th>End</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="replPoolBody"></tbody>
+        </table>
+        <div class="no-data" id="replPoolNoData" style="display:none;">No vehicles in the replacement pool yet.</div>
       </div>
     </div>
   </div>
@@ -1261,6 +1320,73 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('deleteConfirmModal')">Cancel</button>
       <button class="btn btn-danger" onclick="confirmDelete()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- POOL VEHICLE MODAL -->
+<div class="modal-ov" id="poolVehicleModal">
+  <div class="modal" style="min-width:480px;max-width:560px;">
+    <div class="modal-hd"><h2 id="poolVehicleModalTitle">Add Pool Vehicle</h2><button class="m-close" onclick="closeModal('poolVehicleModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="fgrid">
+        <div class="fg"><label>Plate Number <span style="color:var(--pink)">*</span></label><input type="text" id="pv-plate" placeholder="e.g. DXB-11234"></div>
+        <div class="fg"><label>Make / Model <span style="color:var(--pink)">*</span></label><input type="text" id="pv-make"></div>
+        <div class="fg"><label>Category</label><input type="text" id="pv-category"></div>
+        <div class="fg"><label>Own / Rental</label><select id="pv-own"><option value="">— Select —</option><option>Own</option><option>Rental</option><option>Leased</option></select></div>
+        <div class="fg"><label>Region</label><select id="pv-region"><option value="">— Select —</option><option>Dubai</option><option>Abu Dhabi</option><option>Al Ain</option><option>Northern Emirates</option><option>Western Region</option></select></div>
+        <div class="fg"><label>Notes</label><input type="text" id="pv-notes"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('poolVehicleModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePoolVehicle()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- REPLACEMENT TRANSACTION MODAL -->
+<div class="modal-ov" id="replTxModal">
+  <div class="modal" style="min-width:480px;max-width:560px;">
+    <div class="modal-hd"><h2>New Replacement Transaction</h2><button class="m-close" onclick="closeModal('replTxModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="fg">
+        <label>Main Vehicle (from Fleet Master) <span style="color:var(--pink)">*</span></label>
+        <div class="autocomplete-wrap">
+          <input type="text" id="rtx-main-plate" placeholder="Type to search plate…" oninput="acReplMainVehicle(this)">
+          <div class="autocomplete-drop" id="ac-repl-main"></div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Transaction Type <span style="color:var(--pink)">*</span></label>
+        <select id="rtx-type-select" onchange="onReplTxTypeChange()">
+          <option value="">— Select —</option>
+          <option value="Replacement">Replacement</option>
+        </select>
+      </div>
+      <div id="rtx-replacement-fields" style="display:none;">
+        <div class="fg">
+          <label>Replacement Vehicle (Available in Pool) <span style="color:var(--pink)">*</span></label>
+          <select id="rtx-repl-plate"><option value="">— Select Available Vehicle —</option></select>
+        </div>
+        <div class="fg">
+          <label>Replacement Type <span style="color:var(--pink)">*</span></label>
+          <select id="rtx-repl-type" onchange="onReplTypeChange()">
+            <option value="">— Select —</option>
+            <option value="Temporary">Temporary</option>
+            <option value="Permanent">Permanent</option>
+          </select>
+        </div>
+        <div class="fgrid">
+          <div class="fg"><label>Start Date <span style="color:var(--pink)">*</span></label><input type="date" id="rtx-start" lang="en-GB"></div>
+          <div class="fg" id="rtx-end-wrap"><label>End Date <span style="color:var(--pink)">*</span></label><input type="date" id="rtx-end" lang="en-GB"></div>
+        </div>
+        <div id="rtx-error" style="color:var(--red);font-size:12px;margin-top:4px;display:none;"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('replTxModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveReplacementTx()">💾 Create Transaction</button>
     </div>
   </div>
 </div>
@@ -1889,6 +2015,8 @@ function renderAll() {
   renderDrivers();
   renderUsers();
   renderHistory();
+  flagExpiredReplacements();
+  updateReplacementAlertBadge();
 }
 
 // ═══════════════════════════════════════════
@@ -1907,7 +2035,7 @@ function updateCounts() {
     const el = document.getElementById('d-'+k); if(el) el.textContent = c[k];
   });
   const dd = document.getElementById('d-drivers'); if(dd) dd.textContent = drivers.length;
-  const nf = document.getElementById('nc-fleet'); if(nf) nf.textContent = vehicles.length;
+  const nf = document.getElementById('nc-fleet'); if(nf) nf.textContent = vehicles.filter(v=>v.is_replacement_pool!=='true').length;
   const nd = document.getElementById('nc-drivers'); if(nd) nd.textContent = drivers.length;
   updatePermitCount();
 }
@@ -2852,6 +2980,15 @@ function autoFillCategory(make) {
   if (catSel && entry.cat) catSel.value = entry.cat;
 }
 
+let fleetShowReplOnly = false;
+function toggleFleetReplFilter() {
+  fleetShowReplOnly = !fleetShowReplOnly;
+  const btn = document.getElementById('fleetReplToggleBtn');
+  if (btn) { btn.classList.toggle('btn-primary', fleetShowReplOnly); btn.classList.toggle('btn-ghost', !fleetShowReplOnly); }
+  fleetPage = 1;
+  renderFleet();
+}
+
 function getFilteredFleet() {
   const q       = document.getElementById('fleetSearch')?.value.toLowerCase() || '';
   const jcFilter= document.getElementById('fleetJobCode')?.value.trim().toLowerCase() || '';
@@ -2863,6 +3000,8 @@ function getFilteredFleet() {
   };
   const regExpCols = (dashboardQuickFilter?.scope === 'fleet-reg') ? getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label)) : [];
   return vehicles.filter(v => {
+    if (v.is_replacement_pool === 'true') return false; // pool vehicles live in their own tab, not Fleet Master
+    if (fleetShowReplOnly && !getReplacementTransactions().some(t => t.status==='Active' && t.mainVehiclePlate===v.plate)) return false;
     if (!matchMsel('status', v.status)) return false;
     if (!matchMsel('category', v.category)) return false;
     if (!matchMsel('own', v.own)) return false;
@@ -2913,10 +3052,13 @@ function renderFleet() {
   }
 
   const pendingStatusPlates = new Set(getRequests().filter(r => r.type==='status_fleet' && (r.status==='pending_manager'||r.status==='pending_admin')).map(r=>r.data?.plate));
+  const activeReplByMain = new Map(getReplacementTransactions().filter(t => t.status==='Active').map(t => [t.mainVehiclePlate, t]));
   const getCellVal = (v, key) => {
     if (key==='status') {
       const pendingTag = pendingStatusPlates.has(v.plate) ? ` <span class="badge b-maint" title="Status change request pending approval">⏳ Pending</span>` : '';
-      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>${pendingTag}`;
+      const replTx = activeReplByMain.get(v.plate);
+      const replTag = replTx ? ` <span class="badge b-active" title="${replTx.type} replacement, started ${fmtDisplayDate(replTx.startDate)}${replTx.endDate?', until '+fmtDisplayDate(replTx.endDate):''}" style="cursor:pointer;" onclick="switchTab('replacement')">🔄 Covered by ${replTx.replacementPlate}</span>` : '';
+      return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>${pendingTag}${replTag}`;
     }
     if (key==='utilization') return v.utilization ? `<span class="badge ${utilBadge[v.utilization]||'b-ops'}">${v.utilization}</span>` : '—';
     if (key==='end_user')    return v.end_user || '<span style="color:#94a3b8">—</span>';
@@ -3045,6 +3187,9 @@ function clearFleetFilters() {
   ['fleetSearch','fleetJobCode'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   Object.keys(fleetMselState).forEach(k => { fleetMselState[k] = []; updateFleetMselButton(k); });
   dashboardQuickFilter = null;
+  fleetShowReplOnly = false;
+  const btn = document.getElementById('fleetReplToggleBtn');
+  if (btn) { btn.classList.remove('btn-primary'); btn.classList.add('btn-ghost'); }
   renderFleet();
 }
 
@@ -3357,6 +3502,329 @@ function parseCSVLine(line) {
   }
   out.push(cur.trim());
   return out;
+}
+
+// ═══════════════════════════════════════════
+// REPLACEMENT VEHICLE POOL & TRANSACTIONS
+// ═══════════════════════════════════════════
+// Pool vehicles are stored as regular vehicle records (reusing the exact same sync/upsert
+// infrastructure as Fleet Master), flagged with is_replacement_pool:'true'. Fleet Master's own
+// filtering already excludes anything with that flag, so the two lists never mix.
+function getReplacementPool() { return vehicles.filter(v => v.is_replacement_pool === 'true'); }
+
+function getReplacementTransactions() {
+  try { return JSON.parse(localStorage.getItem('agfsReplacementTx') || '[]'); } catch(e) { return []; }
+}
+function saveReplacementTransactions(list) {
+  localStorage.setItem('agfsReplacementTx', JSON.stringify(list));
+  syncFieldConfigToSheet(); // rides the same shared config channel as custom columns, etc.
+}
+
+// ── Pool vehicle CRUD ────────────────────────────────────────
+function openPoolVehicleModal(plate) {
+  _editingPoolPlate = plate || null;
+  ['plate','make','category','own','region','notes'].forEach(f => { const el=document.getElementById('pv-'+f); if(el) el.value=''; });
+  document.getElementById('poolVehicleModalTitle').textContent = plate ? 'Edit Pool Vehicle' : 'Add Pool Vehicle';
+  if (plate) {
+    const v = getReplacementPool().find(x => x.plate === plate);
+    if (v) {
+      document.getElementById('pv-plate').value = v.plate || '';
+      document.getElementById('pv-make').value = v.make || '';
+      document.getElementById('pv-category').value = v.category || '';
+      document.getElementById('pv-own').value = v.own || '';
+      document.getElementById('pv-region').value = v.region || '';
+      document.getElementById('pv-notes').value = v.remarks || '';
+    }
+  }
+  document.getElementById('poolVehicleModal').classList.add('open');
+}
+let _editingPoolPlate = null;
+
+async function savePoolVehicle() {
+  const plate = document.getElementById('pv-plate').value.trim().toUpperCase();
+  const make = document.getElementById('pv-make').value.trim();
+  if (!plate)  { alert('Plate Number is required.'); return; }
+  if (!make)   { alert('Make / Model is required.'); return; }
+  const dupInMainFleet = vehicles.find(v => v.plate.toUpperCase() === plate && v.is_replacement_pool !== 'true' && v.plate.toUpperCase() !== (_editingPoolPlate||'').toUpperCase());
+  if (dupInMainFleet) { alert(`⚠️ "${plate}" already exists as a regular Fleet Master vehicle. A vehicle can't be in both places at once.`); return; }
+  const dupInPool = getReplacementPool().find(v => v.plate.toUpperCase() === plate && v.plate.toUpperCase() !== (_editingPoolPlate||'').toUpperCase());
+  if (dupInPool) { alert(`⚠️ "${plate}" is already in the Replacement Pool.`); return; }
+
+  const idx = vehicles.findIndex(v => v.plate === (_editingPoolPlate || plate));
+  const record = {
+    id: idx>=0 ? vehicles[idx].id : 'v_'+Date.now(),
+    plate, make,
+    category: document.getElementById('pv-category').value.trim(),
+    own: document.getElementById('pv-own').value,
+    region: document.getElementById('pv-region').value,
+    remarks: document.getElementById('pv-notes').value.trim(),
+    is_replacement_pool: 'true',
+    pool_status: idx>=0 ? (vehicles[idx].pool_status || 'Available') : 'Available',
+    status: 'Active',
+  };
+  if (idx >= 0) vehicles[idx] = { ...vehicles[idx], ...record };
+  else vehicles.push(record);
+  persistVehicles();
+  await apiPost({ action:'upsert', record, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  closeModal('poolVehicleModal');
+  renderReplacementPool();
+  showSuccessToast(idx>=0 ? '✅ Pool vehicle updated' : '✅ Pool vehicle added', 3000);
+}
+
+async function deletePoolVehicle(plate) {
+  const v = getReplacementPool().find(x => x.plate === plate);
+  if (!v) return;
+  // Check the actual transaction records directly, not just the pool_status field — this is what
+  // prevents a vehicle from ever being removed while an Active/Expired transaction still points to it.
+  const linkedTx = getReplacementTransactions().find(t => t.replacementPlate === plate && t.status !== 'Closed');
+  if (v.pool_status === 'Assigned' || linkedTx) {
+    alert(`This vehicle is linked to ${linkedTx ? 'an ' + linkedTx.status.toLowerCase() : 'an active'} replacement transaction (covering ${linkedTx?.mainVehiclePlate||'a vehicle'}). Close that transaction first before removing it from the pool.`);
+    return;
+  }
+  if (!confirm(`Remove "${plate}" from the Replacement Vehicle Pool?`)) return;
+  vehicles = vehicles.filter(x => x.plate !== plate);
+  persistVehicles();
+  await apiPost({ action:'delete', plate, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  renderReplacementPool();
+  showSuccessToast('✅ Removed from pool', 3000);
+}
+
+function renderReplacementPool() {
+  const tbody = document.getElementById('replPoolBody');
+  const noData = document.getElementById('replPoolNoData');
+  if (!tbody) return;
+  const filter = document.getElementById('replPoolFilter')?.value || '';
+  let pool = getReplacementPool();
+  if (filter) pool = pool.filter(v => v.pool_status === filter);
+  noData.style.display = pool.length ? 'none' : 'block';
+  const statusColor = { Available:'b-active', Assigned:'b-maint', Expired:'b-termination' };
+  tbody.innerHTML = pool.map(v => `
+    <tr>
+      <td><strong>${v.plate}</strong></td>
+      <td>${v.make||'—'}</td>
+      <td>${v.category||'—'}</td>
+      <td>${v.own||'—'}</td>
+      <td>${v.region||'—'}</td>
+      <td><span class="badge ${statusColor[v.pool_status]||'b-ops'}">${v.pool_status||'Available'}</span></td>
+      <td>${v.pool_assigned_to || '—'}</td>
+      <td>${v.pool_type || '—'}</td>
+      <td>${v.pool_start ? fmtDisplayDate(v.pool_start) : '—'}</td>
+      <td>${v.pool_end ? fmtDisplayDate(v.pool_end) : '—'}</td>
+      <td>
+        <button class="btn btn-ghost btn-xs" onclick="openPoolVehicleModal('${v.plate}')">✎ Edit</button>
+        <button class="btn btn-danger btn-xs" onclick="deletePoolVehicle('${v.plate}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── Replacement transaction creation ────────────────────────
+let _rtxSelectedMainPlate = null;
+
+function openReplacementTxModal() {
+  _rtxSelectedMainPlate = null;
+  document.getElementById('rtx-main-plate').value = '';
+  document.getElementById('rtx-type-select').value = '';
+  document.getElementById('rtx-replacement-fields').style.display = 'none';
+  document.getElementById('rtx-repl-plate').value = '';
+  document.getElementById('rtx-repl-type').value = '';
+  document.getElementById('rtx-start').value = '';
+  document.getElementById('rtx-end').value = '';
+  document.getElementById('rtx-error').style.display = 'none';
+  document.getElementById('replTxModal').classList.add('open');
+}
+
+function acReplMainVehicle(input) {
+  const q = input.value.trim().toLowerCase();
+  const drop = document.getElementById('ac-repl-main');
+  if (!q) { drop.innerHTML = ''; drop.classList.remove('open'); _rtxSelectedMainPlate = null; return; }
+  const matches = vehicles.filter(v => v.is_replacement_pool !== 'true' && v.plate.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { drop.innerHTML = '<div class="ac-item" style="color:#94a3b8;">No matching vehicle</div>'; drop.classList.add('open'); return; }
+  drop.innerHTML = matches.map(v => `<div class="ac-item" onclick="selectReplMainVehicle('${v.plate}')">${v.plate} — ${v.make||''}</div>`).join('');
+  drop.classList.add('open');
+}
+function selectReplMainVehicle(plate) {
+  _rtxSelectedMainPlate = plate;
+  document.getElementById('rtx-main-plate').value = plate;
+  document.getElementById('ac-repl-main').classList.remove('open');
+}
+
+function onReplTxTypeChange() {
+  const type = document.getElementById('rtx-type-select').value;
+  document.getElementById('rtx-replacement-fields').style.display = type === 'Replacement' ? 'block' : 'none';
+  if (type === 'Replacement') {
+    const sel = document.getElementById('rtx-repl-plate');
+    const available = getReplacementPool().filter(v => v.pool_status === 'Available');
+    sel.innerHTML = '<option value="">— Select Available Vehicle —</option>' + available.map(v => `<option value="${v.plate}">${v.plate} — ${v.make||''}</option>`).join('');
+  }
+}
+function onReplTypeChange() {
+  const type = document.getElementById('rtx-repl-type').value;
+  document.getElementById('rtx-end-wrap').style.display = type === 'Permanent' ? 'none' : '';
+}
+
+// Returns true if [aStart,aEnd] overlaps [bStart,bEnd]. A null/blank end (Permanent) is treated as open-ended.
+function dateRangesOverlap(aStart, aEnd, bStart, bEnd) {
+  const as = new Date(toISODate(aStart)), ae = aEnd ? new Date(toISODate(aEnd)) : new Date('2999-12-31');
+  const bs = new Date(toISODate(bStart)), be = bEnd ? new Date(toISODate(bEnd)) : new Date('2999-12-31');
+  return as <= be && bs <= ae;
+}
+
+async function saveReplacementTx() {
+  const errEl = document.getElementById('rtx-error');
+  errEl.style.display = 'none';
+  const showErr = msg => { errEl.textContent = '⚠ ' + msg; errEl.style.display = 'block'; };
+
+  const mainPlate = _rtxSelectedMainPlate || document.getElementById('rtx-main-plate').value.trim().toUpperCase();
+  const txType = document.getElementById('rtx-type-select').value;
+  if (!mainPlate) return showErr('Please select a valid Main Vehicle from the list.');
+  if (!vehicles.find(v => v.plate.toUpperCase() === mainPlate && v.is_replacement_pool !== 'true')) return showErr('That plate was not found in Fleet Master. Please pick one from the suggestions.');
+  if (!txType) return showErr('Please select a Transaction Type.');
+
+  const replPlate = document.getElementById('rtx-repl-plate').value;
+  const replType = document.getElementById('rtx-repl-type').value;
+  const startDate = document.getElementById('rtx-start').value;
+  const endDate = document.getElementById('rtx-end').value;
+
+  if (!replPlate) return showErr('Please select a Replacement Vehicle.');
+  if (!replType) return showErr('Please select a Replacement Type (Temporary/Permanent).');
+  if (!startDate) return showErr('Start Date is required.');
+  if (replType === 'Temporary' && !endDate) return showErr('End Date is required for a Temporary replacement.');
+  if (replType === 'Temporary' && endDate < startDate) return showErr('End Date must be after Start Date.');
+
+  // Rule: Main and Replacement vehicle must not be the same
+  if (mainPlate.toUpperCase() === replPlate.toUpperCase()) return showErr('The Main Vehicle and Replacement Vehicle cannot be the same.');
+
+  // Rule: replacement vehicle must currently be Available (re-check — someone else may have taken it)
+  const poolVeh = getReplacementPool().find(v => v.plate === replPlate);
+  if (!poolVeh || poolVeh.pool_status !== 'Available') return showErr('That replacement vehicle is no longer Available. Please pick another.');
+
+  // Rule: no overlapping replacement periods for the same replacement vehicle
+  const existingTx = getReplacementTransactions().filter(t => t.replacementPlate === replPlate && t.status !== 'Closed');
+  const overlap = existingTx.some(t => dateRangesOverlap(startDate, endDate, t.startDate, t.endDate));
+  if (overlap) return showErr('This vehicle already has an overlapping replacement period on record. Close that transaction first, or pick different dates.');
+
+  const tx = {
+    id: 'rtx_' + Date.now(),
+    mainVehiclePlate: mainPlate,
+    replacementPlate: replPlate,
+    type: replType,
+    startDate, endDate: replType === 'Permanent' ? '' : endDate,
+    status: 'Active',
+    createdBy: currentUser?.name || '', createdAt: new Date().toISOString(),
+    closedBy: '', closedAt: '',
+  };
+  const txList = getReplacementTransactions();
+  txList.unshift(tx);
+  saveReplacementTransactions(txList);
+
+  // Mark the pool vehicle Assigned
+  const pv = vehicles.find(v => v.plate === replPlate);
+  if (pv) {
+    pv.pool_status = 'Assigned';
+    pv.pool_type = replType;
+    pv.pool_start = startDate;
+    pv.pool_end = tx.endDate;
+    pv.pool_assigned_to = mainPlate;
+    persistVehicles();
+    await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  }
+
+  logChange('fleet','Updated','REPLACEMENT',`${mainPlate} ↔ ${replPlate} (${replType})`,[
+    {field:'replacement', label:'Replacement Created', oldVal:'', newVal:`${replPlate} now covering ${mainPlate}, ${replType}${tx.endDate?' until '+fmtDisplayDate(tx.endDate):''}`}
+  ]);
+
+  closeModal('replTxModal');
+  renderReplacementTransactions();
+  renderReplacementPool();
+  updateReplacementAlertBadge();
+  showSuccessToast('✅ Replacement transaction created', 3500);
+}
+
+// ── Transaction list, expiry detection, closure ─────────────
+function renderReplacementTransactions() {
+  const tbody = document.getElementById('replTxBody');
+  const noData = document.getElementById('replTxNoData');
+  if (!tbody) return;
+  flagExpiredReplacements();
+  const filter = document.getElementById('replTxFilter')?.value || '';
+  let list = getReplacementTransactions();
+  if (filter) list = list.filter(t => t.status === filter);
+  noData.style.display = list.length ? 'none' : 'block';
+  const statusColor = { Active:'b-active', Expired:'b-termination', Closed:'b-ops' };
+  tbody.innerHTML = list.map(t => `
+    <tr>
+      <td><strong>${t.mainVehiclePlate}</strong></td>
+      <td>${t.replacementPlate}</td>
+      <td>${t.type}</td>
+      <td>${fmtDisplayDate(t.startDate)}</td>
+      <td>${t.endDate ? fmtDisplayDate(t.endDate) : '— (Permanent)'}</td>
+      <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
+      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="closeReplacementTx('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;">Closed ${t.closedAt?fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
+    </tr>`).join('');
+  updateReplacementAlertBadge();
+}
+
+// Detects Temporary transactions past their End Date and flags them 'Expired' — does NOT
+// automatically return the vehicle to Available; that only happens when an admin explicitly
+// closes the transaction (see closeReplacementTx), per the "subject to closure/confirmation" rule.
+function flagExpiredReplacements() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const list = getReplacementTransactions();
+  let changed = false;
+  list.forEach(t => {
+    if (t.status === 'Active' && t.type === 'Temporary' && t.endDate) {
+      const end = new Date(toISODate(t.endDate));
+      if (end < today) { t.status = 'Expired'; changed = true; }
+    }
+  });
+  if (changed) saveReplacementTransactions(list);
+}
+
+async function closeReplacementTx(txId) {
+  const list = getReplacementTransactions();
+  const tx = list.find(t => t.id === txId);
+  if (!tx) return;
+  const today = new Date().toISOString().slice(0,10);
+  const closingEarly = tx.status === 'Active' && (!tx.endDate || tx.endDate > today);
+  const confirmMsg = closingEarly
+    ? `Close this replacement today and return "${tx.replacementPlate}" to Available in the pool?\n\nThis will record today (${fmtDisplayDate(today)}) as the actual end date, even though it was originally planned for ${tx.endDate ? fmtDisplayDate(tx.endDate) : 'no set end date (Permanent)'}.`
+    : `Close this replacement and return "${tx.replacementPlate}" to Available in the pool?`;
+  if (!confirm(confirmMsg)) return;
+  tx.status = 'Closed';
+  tx.endDate = today; // the actual end date is always when it was closed, not the originally planned one
+  tx.closedBy = currentUser?.name || '';
+  tx.closedAt = new Date().toISOString();
+  saveReplacementTransactions(list);
+
+  const pv = vehicles.find(v => v.plate === tx.replacementPlate);
+  if (pv) {
+    pv.pool_status = 'Available';
+    pv.pool_type = ''; pv.pool_start = ''; pv.pool_end = ''; pv.pool_assigned_to = '';
+    persistVehicles();
+    await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  }
+  logChange('fleet','Updated','REPLACEMENT',`Closed: ${tx.replacementPlate} returned from ${tx.mainVehiclePlate}`,[
+    {field:'replacement', label:'Replacement Closed', oldVal:'Active/Expired', newVal:`${tx.replacementPlate} back to Available`}
+  ]);
+  renderReplacementTransactions();
+  renderReplacementPool();
+  showSuccessToast(pv ? '✅ Closed — vehicle returned to pool' : '✅ Transaction closed (the pool vehicle record no longer exists, so nothing to return)', 4000);
+}
+
+function updateReplacementAlertBadge() {
+  const expiredCount = getReplacementTransactions().filter(t => t.status === 'Expired').length;
+  const badge = document.getElementById('nc-replacement-alert');
+  if (badge) {
+    if (expiredCount) { badge.textContent = expiredCount; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+  }
+  const alertEl = document.getElementById('replExpiryAlert');
+  if (alertEl) {
+    alertEl.innerHTML = expiredCount
+      ? `⚠️ <strong>${expiredCount}</strong> temporary replacement${expiredCount>1?'s have':' has'} passed its end date and ${expiredCount>1?'need':'needs'} closure to return the vehicle to the pool. See the "Expired" filter below.`
+      : '';
+    alertEl.style.display = expiredCount ? 'block' : 'none';
+  }
 }
 
 function exportColoredExcel(filename, cols, data, dateKeys) {
@@ -4445,6 +4913,7 @@ function getAllFieldConfigs() {
       driver: getRemovedCustomCols('driver'),
     },
     vehicleIdCounter: getVehicleIdCounter(),
+    replacementTx: getReplacementTransactions(),
   };
 }
 
@@ -4484,9 +4953,13 @@ async function syncFieldConfigFromSheet() {
         const local = getVehicleIdCounter();
         localStorage.setItem('agfsVehicleIdCounter', String(Math.max(local, j.data.vehicleIdCounter)));
       }
+      if (Array.isArray(j.data.replacementTx)) {
+        localStorage.setItem('agfsReplacementTx', JSON.stringify(j.data.replacementTx));
+      }
       applyFieldConfigs();
       if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
       if (typeof renderDrivers === 'function' && document.getElementById('page-drivers')?.classList.contains('active')) renderDrivers();
+      if (typeof renderReplacementTransactions === 'function' && document.getElementById('page-replacement')?.classList.contains('active')) { renderReplacementTransactions(); renderReplacementPool(); }
     }
   } catch(e) { console.warn('Field config sync failed:', e); }
 }
@@ -6216,6 +6689,7 @@ function switchTab(tab) {
   if (pg) { pg.style.display = ''; pg.classList.add('active'); }
   if (tab === 'access') { renderFieldConfigPanel(); renderUsers(); renderHistory(); updateApprovalBadge(); }
   if (tab === 'permits') { renderPermits(); }
+  if (tab === 'replacement') { renderReplacementTransactions(); renderReplacementPool(); }
   if (tab === 'fleet')   { renderFleet(); }
   if (tab === 'drivers') { renderDrivers(); }
 }
