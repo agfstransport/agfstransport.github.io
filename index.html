@@ -785,6 +785,10 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
 
     <div id="replExpiryAlert" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:16px;"></div>
 
+    <div class="card" style="margin-bottom:16px;">
+      <div id="replSummary" style="padding:14px 16px;display:flex;gap:28px;flex-wrap:wrap;"></div>
+    </div>
+
     <!-- Transactions -->
     <div class="card" style="margin-bottom:16px;">
       <div class="card-head">
@@ -1379,7 +1383,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         </div>
         <div class="fgrid">
           <div class="fg"><label>Start Date <span style="color:var(--pink)">*</span></label><input type="date" id="rtx-start" lang="en-GB"></div>
-          <div class="fg" id="rtx-end-wrap"><label>End Date <span style="color:var(--pink)">*</span></label><input type="date" id="rtx-end" lang="en-GB"></div>
+          <div class="fg" id="rtx-end-wrap"><label>End Date <span style="color:#94a3b8;font-weight:400;">(optional — leave blank if unknown)</span></label><input type="date" id="rtx-end" lang="en-GB"></div>
         </div>
         <div id="rtx-error" style="color:var(--red);font-size:12px;margin-top:4px;display:none;"></div>
       </div>
@@ -1843,6 +1847,7 @@ async function loadData() {
   syncFieldConfigFromSheet(); // pull field configurations so all users get same dropdowns
   syncPermitsFromSheet(); // pull permits from Sheet so all users see same data
   syncNotificationsFromSheet(); // pull cross-device notifications (e.g. approval results)
+  syncReplacementTxFromSheet(); // pull replacement transactions from their dedicated sheet tab
   try {
     const [vRes, dRes, hRes] = await Promise.all([
       fetchWithTimeout(GAS_URL + '?action=records', {}, 20000),
@@ -3517,7 +3522,24 @@ function getReplacementTransactions() {
 }
 function saveReplacementTransactions(list) {
   localStorage.setItem('agfsReplacementTx', JSON.stringify(list));
-  syncFieldConfigToSheet(); // rides the same shared config channel as custom columns, etc.
+  if (GAS_URL) {
+    apiPost({ action:'save_replacement_tx', transactions:list }, true).then(result => {
+      // Falls back to the old shared config channel only if the new backend action isn't set up yet,
+      // so nothing is lost while you're still adding the Apps Script code.
+      if (!result || !result.ok) syncFieldConfigToSheet();
+    });
+  }
+}
+
+async function syncReplacementTxFromSheet() {
+  if (!GAS_URL) return;
+  try {
+    const r = await fetchWithTimeout(GAS_URL + '?action=replacement_tx', {}, 15000);
+    const j = await r.json();
+    if (j.ok && Array.isArray(j.data)) {
+      localStorage.setItem('agfsReplacementTx', JSON.stringify(j.data));
+    }
+  } catch(e) { console.warn('Replacement transactions sync failed (backend action may not be added yet):', e); }
 }
 
 // ── Pool vehicle CRUD ────────────────────────────────────────
@@ -3696,8 +3718,7 @@ async function saveReplacementTx() {
   if (!replPlate) return showErr('Please select a Replacement Vehicle.');
   if (!replType) return showErr('Please select a Replacement Type (Temporary/Permanent).');
   if (!startDate) return showErr('Start Date is required.');
-  if (replType === 'Temporary' && !endDate) return showErr('End Date is required for a Temporary replacement.');
-  if (replType === 'Temporary' && endDate < startDate) return showErr('End Date must be after Start Date.');
+  if (replType === 'Temporary' && endDate && endDate < startDate) return showErr('End Date must be after Start Date.');
 
   // Rule: Main and Replacement vehicle must not be the same
   if (mainPlate.toUpperCase() === replPlate.toUpperCase()) return showErr('The Main Vehicle and Replacement Vehicle cannot be the same.');
@@ -3775,20 +3796,40 @@ function renderReplacementTransactions() {
   if (!tbody) return;
   flagExpiredReplacements();
   const filter = document.getElementById('replTxFilter')?.value || '';
-  let list = getReplacementTransactions();
+  const allTx = getReplacementTransactions();
+  let list = allTx;
   if (filter) list = list.filter(t => t.status === filter);
   noData.style.display = list.length ? 'none' : 'block';
   const statusColor = { Active:'b-active', Expired:'b-termination', Closed:'b-ops' };
+  const endDateLabel = t => t.endDate ? fmtDisplayDate(t.endDate) : (t.type === 'Permanent' ? '— (Permanent)' : '— (not set yet)');
   tbody.innerHTML = list.map(t => `
     <tr>
       <td><strong>${t.mainVehiclePlate}</strong></td>
       <td>${t.replacementPlate}</td>
       <td>${t.type}</td>
       <td>${fmtDisplayDate(t.startDate)}</td>
-      <td>${t.endDate ? fmtDisplayDate(t.endDate) : '— (Permanent)'}</td>
+      <td>${endDateLabel(t)}</td>
       <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
       <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="closeReplacementTx('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;">Closed ${t.closedAt?fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
     </tr>`).join('');
+
+  const summaryEl = document.getElementById('replSummary');
+  if (summaryEl) {
+    const active = allTx.filter(t=>t.status==='Active').length;
+    const expired = allTx.filter(t=>t.status==='Expired').length;
+    const closed = allTx.filter(t=>t.status==='Closed').length;
+    const temp = allTx.filter(t=>t.type==='Temporary' && t.status!=='Closed').length;
+    const perm = allTx.filter(t=>t.type==='Permanent' && t.status!=='Closed').length;
+    const poolAvailable = getReplacementPool().filter(v=>v.pool_status==='Available').length;
+    summaryEl.innerHTML = `
+      <div><div style="font-size:11px;color:#94a3b8;">Total Transactions</div><div style="font-size:18px;font-weight:700;">${allTx.length}</div></div>
+      <div><div style="font-size:11px;color:#15803d;">✓ Active</div><div style="font-size:18px;font-weight:700;color:#15803d;">${active}</div></div>
+      <div><div style="font-size:11px;color:#b45309;">⚠ Expired (needs closure)</div><div style="font-size:18px;font-weight:700;color:#b45309;">${expired}</div></div>
+      <div><div style="font-size:11px;color:#94a3b8;">Closed</div><div style="font-size:18px;font-weight:700;">${closed}</div></div>
+      <div><div style="font-size:11px;color:#94a3b8;">Temporary / Permanent (open)</div><div style="font-size:18px;font-weight:700;">${temp} / ${perm}</div></div>
+      <div><div style="font-size:11px;color:#94a3b8;">Pool Vehicles Available</div><div style="font-size:18px;font-weight:700;">${poolAvailable}</div></div>
+    `;
+  }
   updateReplacementAlertBadge();
 }
 
