@@ -819,6 +819,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="card-head">
         <h3>🚗 Replacement Vehicle Pool</h3>
         <div class="spacer"></div>
+        <button class="btn btn-ghost btn-sm" onclick="repairStuckSwaps()" title="Find and fix any vehicle stuck 'swapped out' whose transaction already shows Closed">🔧 Repair Stuck Swaps</button>
         <select id="replPoolFilter" onchange="renderReplacementPool()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
           <option value="">All Status</option>
           <option value="Available">Available</option>
@@ -3611,6 +3612,48 @@ async function deletePoolVehicle(plate) {
   showSuccessToast('✅ Removed from pool', 3000);
 }
 
+// Detects vehicles stuck "swapped out" (pool_role='out_of_service') whose linked transaction is
+// already Closed — this exact inconsistency is what happens if closeReplacementTx ran while
+// vehicle data wasn't fully loaded. Restores them properly, same logic as a normal close.
+async function repairStuckSwaps() {
+  if (!vehicles || vehicles.length === 0) {
+    alert('⚠️ Vehicle data doesn\'t appear to be fully loaded (0 vehicles). Click Sync and wait for it to finish before repairing.');
+    return;
+  }
+  const closedTx = getReplacementTransactions().filter(t => t.status === 'Closed');
+  const stuck = vehicles.filter(v => v.pool_role === 'out_of_service' && closedTx.some(t => t.mainVehiclePlate === v.plate));
+  if (!stuck.length) { alert('✅ No stuck swaps found — everything looks consistent.'); return; }
+
+  if (!confirm(`Found ${stuck.length} vehicle(s) stuck "swapped out" despite their transaction already showing Closed:\n\n${stuck.map(v=>v.plate).join(', ')}\n\nRestore ${stuck.length > 1 ? 'them' : 'it'} to Fleet Master now?`)) return;
+
+  for (const mv of stuck) {
+    const linkedTx = closedTx.find(t => t.mainVehiclePlate === mv.plate);
+    delete mv.is_replacement_pool;
+    delete mv.pool_status; delete mv.pool_role; delete mv.pool_type;
+    delete mv.pool_start; delete mv.pool_end; delete mv.pool_linked_plate;
+    mv.status = linkedTx?.mainVehiclePriorStatus || mv.status || 'Active';
+    await apiPost({ action:'upsert', record:mv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+
+    // Also make sure the replacement vehicle that was covering it is properly back in the pool as Available
+    if (linkedTx) {
+      const pv = vehicles.find(v => v.plate === linkedTx.replacementPlate);
+      if (pv && pv.pool_status !== 'Available') {
+        delete pv.covering_for_plate;
+        pv.is_replacement_pool = 'true';
+        pv.pool_status = 'Available';
+        await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+      }
+    }
+  }
+  persistVehicles();
+  logChange('fleet','Updated','REPLACEMENT',`Repaired ${stuck.length} stuck swap(s): ${stuck.map(v=>v.plate).join(', ')}`,[
+    {field:'replacement', label:'Repair Stuck Swaps', oldVal:'Stuck in Pool', newVal:`${stuck.length} vehicle(s) restored to Fleet Master`}
+  ]);
+  renderFleet();
+  renderReplacementPool();
+  showSuccessToast(`✅ Repaired ${stuck.length} vehicle(s)`, 4000);
+}
+
 function renderReplacementPool() {
   const tbody = document.getElementById('replPoolBody');
   const noData = document.getElementById('replPoolNoData');
@@ -3850,6 +3893,14 @@ function flagExpiredReplacements() {
 }
 
 async function closeReplacementTx(txId) {
+  // Safety check: if vehicle data hasn't actually finished loading (e.g. still syncing, or a
+  // connection hiccup), vehicles.find() below would silently fail to locate anything and this
+  // would incorrectly mark the transaction Closed without ever restoring the vehicles. Refuse to
+  // proceed rather than risk that — this is exactly what caused DXB-95319 to get stuck.
+  if (!vehicles || vehicles.length === 0) {
+    alert('⚠️ Vehicle data doesn\'t appear to be fully loaded yet (Fleet Master shows 0 vehicles). Please click Sync, wait for it to finish, and try closing this transaction again — closing now could mark it Closed without actually restoring the vehicles.');
+    return;
+  }
   const list = getReplacementTransactions();
   const tx = list.find(t => t.id === txId);
   if (!tx) return;
@@ -3859,15 +3910,24 @@ async function closeReplacementTx(txId) {
     ? `Close this replacement today?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.\n\nThis will record today (${fmtDisplayDate(today)}) as the actual end date, even though it was originally planned for ${tx.endDate ? fmtDisplayDate(tx.endDate) : 'no set end date (Permanent)'}.`
     : `Close this replacement?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.`;
   if (!confirm(confirmMsg)) return;
+
+  // ── Reverse the swap FIRST, and only mark the transaction Closed if both vehicles were
+  // actually found and restored (or the caller explicitly confirms proceeding anyway) ──
+  const mv = vehicles.find(v => v.plate === tx.mainVehiclePlate);
+  const pv = vehicles.find(v => v.plate === tx.replacementPlate);
+  const missing = [];
+  if (!mv) missing.push(tx.mainVehiclePlate + ' (Main Vehicle)');
+  if (!pv) missing.push(tx.replacementPlate + ' (Replacement Vehicle)');
+  if (missing.length) {
+    if (!confirm(`⚠️ Could not find: ${missing.join(', ')} in current vehicle data.\n\nClosing anyway will mark this transaction Closed WITHOUT restoring the missing vehicle(s) — you'll need to fix that manually afterward.\n\nClose anyway?`)) return;
+  }
+
   tx.status = 'Closed';
   tx.endDate = today; // the actual end date is always when it was closed, not the originally planned one
   tx.closedBy = currentUser?.name || '';
   tx.closedAt = new Date().toISOString();
   saveReplacementTransactions(list);
 
-  // ── Reverse the swap ──────────────────────────────────────
-  const mv = vehicles.find(v => v.plate === tx.mainVehiclePlate);
-  const pv = vehicles.find(v => v.plate === tx.replacementPlate);
   if (mv) {
     delete mv.is_replacement_pool;
     delete mv.pool_status; delete mv.pool_role; delete mv.pool_type;
@@ -3907,6 +3967,7 @@ function updateReplacementAlertBadge() {
     alertEl.style.display = expiredCount ? 'block' : 'none';
   }
 }
+
 
 function exportColoredExcel(filename, cols, data, dateKeys) {
   if (!data.length) { alert('No records to export.'); return; }
