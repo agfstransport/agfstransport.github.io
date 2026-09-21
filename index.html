@@ -611,7 +611,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-region" onclick="toggleFleetMsel('region')">All Regions ▾</button><div class="fmsel-drop" id="fmselDrop-region"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-utilization" onclick="toggleFleetMsel('utilization')">All Utilization ▾</button><div class="fmsel-drop" id="fmselDrop-utilization"></div></div>
         <div class="fmsel-wrap"><button class="fmsel-btn" id="fmselBtn-assigned_project" onclick="toggleFleetMsel('assigned_project')">All Projects ▾</button><div class="fmsel-drop" id="fmselDrop-assigned_project"></div></div>
-        <button class="btn btn-ghost btn-sm" id="fleetReplToggleBtn" onclick="toggleFleetReplFilter()">🔄 Covered by Replacement</button>
+        <button class="btn btn-ghost btn-sm" id="fleetReplToggleBtn" onclick="toggleFleetReplFilter()">🔄 Standing In (Replacements)</button>
         <button class="btn btn-ghost btn-sm" onclick="clearFleetFilters()">✕ Clear</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;" id="bulkFleetBar">
           <span class="badge b-ops" id="fleetSelCount" style="display:none;"></span>
@@ -827,7 +827,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <table>
           <thead><tr>
             <th>Plate</th><th>Make/Model</th><th>Category</th><th>Own/Rental</th><th>Region</th>
-            <th>Pool Status</th><th>Currently Replacing</th><th>Type</th><th>Start</th><th>End</th><th>Actions</th>
+            <th>Pool Status</th><th>Linked Vehicle</th><th>Type</th><th>Start</th><th>End</th><th>Actions</th>
           </tr></thead>
           <tbody id="replPoolBody"></tbody>
         </table>
@@ -3001,7 +3001,7 @@ function getFilteredFleet() {
   const regExpCols = (dashboardQuickFilter?.scope === 'fleet-reg') ? getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label)) : [];
   return vehicles.filter(v => {
     if (v.is_replacement_pool === 'true') return false; // pool vehicles live in their own tab, not Fleet Master
-    if (fleetShowReplOnly && !getReplacementTransactions().some(t => t.status==='Active' && t.mainVehiclePlate===v.plate)) return false;
+    if (fleetShowReplOnly && !getReplacementTransactions().some(t => t.status==='Active' && t.replacementPlate===v.plate)) return false;
     if (!matchMsel('status', v.status)) return false;
     if (!matchMsel('category', v.category)) return false;
     if (!matchMsel('own', v.own)) return false;
@@ -3052,12 +3052,12 @@ function renderFleet() {
   }
 
   const pendingStatusPlates = new Set(getRequests().filter(r => r.type==='status_fleet' && (r.status==='pending_manager'||r.status==='pending_admin')).map(r=>r.data?.plate));
-  const activeReplByMain = new Map(getReplacementTransactions().filter(t => t.status==='Active').map(t => [t.mainVehiclePlate, t]));
+  const activeReplByReplacement = new Map(getReplacementTransactions().filter(t => t.status==='Active').map(t => [t.replacementPlate, t]));
   const getCellVal = (v, key) => {
     if (key==='status') {
       const pendingTag = pendingStatusPlates.has(v.plate) ? ` <span class="badge b-maint" title="Status change request pending approval">⏳ Pending</span>` : '';
-      const replTx = activeReplByMain.get(v.plate);
-      const replTag = replTx ? ` <span class="badge b-active" title="${replTx.type} replacement, started ${fmtDisplayDate(replTx.startDate)}${replTx.endDate?', until '+fmtDisplayDate(replTx.endDate):''}" style="cursor:pointer;" onclick="switchTab('replacement')">🔄 Covered by ${replTx.replacementPlate}</span>` : '';
+      const replTx = activeReplByReplacement.get(v.plate);
+      const replTag = replTx ? ` <span class="badge b-active" title="${replTx.type} replacement, started ${fmtDisplayDate(replTx.startDate)}${replTx.endDate?', until '+fmtDisplayDate(replTx.endDate):''}" style="cursor:pointer;" onclick="switchTab('replacement')">🔄 Covering for ${replTx.mainVehiclePlate}</span>` : '';
       return `<span class="badge ${statusBadge[v.status]||'b-ops'}">${v.status}</span>${pendingTag}${replTag}`;
     }
     if (key==='utilization') return v.utilization ? `<span class="badge ${utilBadge[v.utilization]||'b-ops'}">${v.utilization}</span>` : '—';
@@ -3576,9 +3576,9 @@ async function deletePoolVehicle(plate) {
   if (!v) return;
   // Check the actual transaction records directly, not just the pool_status field — this is what
   // prevents a vehicle from ever being removed while an Active/Expired transaction still points to it.
-  const linkedTx = getReplacementTransactions().find(t => t.replacementPlate === plate && t.status !== 'Closed');
+  const linkedTx = getReplacementTransactions().find(t => (t.replacementPlate === plate || t.mainVehiclePlate === plate) && t.status !== 'Closed');
   if (v.pool_status === 'Assigned' || linkedTx) {
-    alert(`This vehicle is linked to ${linkedTx ? 'an ' + linkedTx.status.toLowerCase() : 'an active'} replacement transaction (covering ${linkedTx?.mainVehiclePlate||'a vehicle'}). Close that transaction first before removing it from the pool.`);
+    alert(`This vehicle is linked to ${linkedTx ? 'an ' + linkedTx.status.toLowerCase() : 'an active'} replacement transaction. Close that transaction first before removing it from the pool.`);
     return;
   }
   if (!confirm(`Remove "${plate}" from the Replacement Vehicle Pool?`)) return;
@@ -3598,23 +3598,31 @@ function renderReplacementPool() {
   if (filter) pool = pool.filter(v => v.pool_status === filter);
   noData.style.display = pool.length ? 'none' : 'block';
   const statusColor = { Available:'b-active', Assigned:'b-maint', Expired:'b-termination' };
-  tbody.innerHTML = pool.map(v => `
-    <tr>
-      <td><strong>${v.plate}</strong></td>
+  tbody.innerHTML = pool.map(v => {
+    const isSwappedMain = v.pool_role === 'out_of_service';
+    const linkLabel = isSwappedMain
+      ? (v.pool_linked_plate ? `Covered by ${v.pool_linked_plate}` : '—')
+      : (v.pool_linked_plate || '—');
+    return `
+    <tr ${isSwappedMain?'style="background:#fef9e7;"':''}>
+      <td><strong>${v.plate}</strong>${isSwappedMain?' <span style="font-size:10px;color:#b45309;">(swapped out)</span>':''}</td>
       <td>${v.make||'—'}</td>
       <td>${v.category||'—'}</td>
       <td>${v.own||'—'}</td>
       <td>${v.region||'—'}</td>
       <td><span class="badge ${statusColor[v.pool_status]||'b-ops'}">${v.pool_status||'Available'}</span></td>
-      <td>${v.pool_assigned_to || '—'}</td>
+      <td>${linkLabel}</td>
       <td>${v.pool_type || '—'}</td>
       <td>${v.pool_start ? fmtDisplayDate(v.pool_start) : '—'}</td>
       <td>${v.pool_end ? fmtDisplayDate(v.pool_end) : '—'}</td>
       <td>
-        <button class="btn btn-ghost btn-xs" onclick="openPoolVehicleModal('${v.plate}')">✎ Edit</button>
-        <button class="btn btn-danger btn-xs" onclick="deletePoolVehicle('${v.plate}')">🗑</button>
+        ${isSwappedMain
+          ? `<span style="font-size:11px;color:#94a3b8;">Close the transaction to restore</span>`
+          : `<button class="btn btn-ghost btn-xs" onclick="openPoolVehicleModal('${v.plate}')">✎ Edit</button>
+             <button class="btn btn-danger btn-xs" onclick="deletePoolVehicle('${v.plate}')">🗑</button>`}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 // ── Replacement transaction creation ────────────────────────
@@ -3713,29 +3721,49 @@ async function saveReplacementTx() {
     createdBy: currentUser?.name || '', createdAt: new Date().toISOString(),
     closedBy: '', closedAt: '',
   };
+
+  // ── Perform the actual swap ──────────────────────────────────
+  // Main Vehicle moves OUT of Fleet Master and INTO the Pool (it's off the road).
+  // Replacement Vehicle moves OUT of the Pool and INTO Fleet Master (it's now doing the job).
+  // All existing data on both vehicles is preserved as-is — nothing is cleared or merged; each
+  // keeps its own separate identity. The Main Vehicle's status is saved on the transaction itself
+  // so it can be restored exactly when this transaction is closed.
+  const mv = vehicles.find(v => v.plate.toUpperCase() === mainPlate);
+  const pv = poolVeh; // the replacement vehicle object, already looked up and validated above
+  tx.mainVehiclePriorStatus = mv?.status || 'Active';
+
+  if (mv) {
+    mv.is_replacement_pool = 'true';
+    mv.pool_status = 'Assigned';
+    mv.pool_role = 'out_of_service'; // sitting in the pool because it's being covered, not because it's spare
+    mv.pool_type = replType;
+    mv.pool_start = startDate;
+    mv.pool_end = tx.endDate;
+    mv.pool_linked_plate = replPlate; // who is covering for it
+  }
+  if (pv) {
+    delete pv.is_replacement_pool;
+    delete pv.pool_status; delete pv.pool_role; delete pv.pool_type;
+    delete pv.pool_start; delete pv.pool_end; delete pv.pool_linked_plate;
+    pv.status = 'Active';
+    pv.covering_for_plate = mainPlate; // shown as a badge in Fleet Master
+  }
+  persistVehicles();
+  if (mv) await apiPost({ action:'upsert', record:mv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  if (pv) await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+
   const txList = getReplacementTransactions();
   txList.unshift(tx);
   saveReplacementTransactions(txList);
 
-  // Mark the pool vehicle Assigned
-  const pv = vehicles.find(v => v.plate === replPlate);
-  if (pv) {
-    pv.pool_status = 'Assigned';
-    pv.pool_type = replType;
-    pv.pool_start = startDate;
-    pv.pool_end = tx.endDate;
-    pv.pool_assigned_to = mainPlate;
-    persistVehicles();
-    await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
-  }
-
   logChange('fleet','Updated','REPLACEMENT',`${mainPlate} ↔ ${replPlate} (${replType})`,[
-    {field:'replacement', label:'Replacement Created', oldVal:'', newVal:`${replPlate} now covering ${mainPlate}, ${replType}${tx.endDate?' until '+fmtDisplayDate(tx.endDate):''}`}
+    {field:'replacement', label:'Replacement Created', oldVal:'', newVal:`${replPlate} swapped in to cover ${mainPlate} (now in Pool), ${replType}${tx.endDate?' until '+fmtDisplayDate(tx.endDate):''}`}
   ]);
 
   closeModal('replTxModal');
   renderReplacementTransactions();
   renderReplacementPool();
+  renderFleet();
   updateReplacementAlertBadge();
   showSuccessToast('✅ Replacement transaction created', 3500);
 }
@@ -3787,8 +3815,8 @@ async function closeReplacementTx(txId) {
   const today = new Date().toISOString().slice(0,10);
   const closingEarly = tx.status === 'Active' && (!tx.endDate || tx.endDate > today);
   const confirmMsg = closingEarly
-    ? `Close this replacement today and return "${tx.replacementPlate}" to Available in the pool?\n\nThis will record today (${fmtDisplayDate(today)}) as the actual end date, even though it was originally planned for ${tx.endDate ? fmtDisplayDate(tx.endDate) : 'no set end date (Permanent)'}.`
-    : `Close this replacement and return "${tx.replacementPlate}" to Available in the pool?`;
+    ? `Close this replacement today?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.\n\nThis will record today (${fmtDisplayDate(today)}) as the actual end date, even though it was originally planned for ${tx.endDate ? fmtDisplayDate(tx.endDate) : 'no set end date (Permanent)'}.`
+    : `Close this replacement?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.`;
   if (!confirm(confirmMsg)) return;
   tx.status = 'Closed';
   tx.endDate = today; // the actual end date is always when it was closed, not the originally planned one
@@ -3796,19 +3824,31 @@ async function closeReplacementTx(txId) {
   tx.closedAt = new Date().toISOString();
   saveReplacementTransactions(list);
 
+  // ── Reverse the swap ──────────────────────────────────────
+  const mv = vehicles.find(v => v.plate === tx.mainVehiclePlate);
   const pv = vehicles.find(v => v.plate === tx.replacementPlate);
+  if (mv) {
+    delete mv.is_replacement_pool;
+    delete mv.pool_status; delete mv.pool_role; delete mv.pool_type;
+    delete mv.pool_start; delete mv.pool_end; delete mv.pool_linked_plate;
+    mv.status = tx.mainVehiclePriorStatus || mv.status || 'Active'; // restore exactly what it was before the swap
+    await apiPost({ action:'upsert', record:mv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+  }
   if (pv) {
+    delete pv.covering_for_plate;
+    pv.is_replacement_pool = 'true';
     pv.pool_status = 'Available';
-    pv.pool_type = ''; pv.pool_start = ''; pv.pool_end = ''; pv.pool_assigned_to = '';
-    persistVehicles();
     await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
   }
-  logChange('fleet','Updated','REPLACEMENT',`Closed: ${tx.replacementPlate} returned from ${tx.mainVehiclePlate}`,[
-    {field:'replacement', label:'Replacement Closed', oldVal:'Active/Expired', newVal:`${tx.replacementPlate} back to Available`}
+  persistVehicles();
+
+  logChange('fleet','Updated','REPLACEMENT',`Closed: ${tx.mainVehiclePlate} back to Fleet Master, ${tx.replacementPlate} back to Pool`,[
+    {field:'replacement', label:'Replacement Closed', oldVal:'Active/Expired', newVal:`${tx.mainVehiclePlate} restored, ${tx.replacementPlate} available again`}
   ]);
   renderReplacementTransactions();
   renderReplacementPool();
-  showSuccessToast(pv ? '✅ Closed — vehicle returned to pool' : '✅ Transaction closed (the pool vehicle record no longer exists, so nothing to return)', 4000);
+  renderFleet();
+  showSuccessToast(mv && pv ? '✅ Closed — vehicles swapped back' : '✅ Transaction closed (one or both vehicle records no longer exist)', 4000);
 }
 
 function updateReplacementAlertBadge() {
