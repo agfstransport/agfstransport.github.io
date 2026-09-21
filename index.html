@@ -1845,7 +1845,7 @@ async function loadData() {
   loadPersistedData(); // always load local first
   if (!GAS_URL) { renderAll(); return; }
   syncRequestsFromSheet(); // pull pending approvals from Sheet so admin sees all team submissions
-  syncFieldConfigFromSheet(); // pull field configurations so all users get same dropdowns
+  await syncFieldConfigFromSheet(); // must finish BEFORE the cleanup below, or a slow pull could overwrite it with stale data
   syncPermitsFromSheet(); // pull permits from Sheet so all users see same data
   syncNotificationsFromSheet(); // pull cross-device notifications (e.g. approval results)
   syncReplacementTxFromSheet(); // pull replacement transactions from their dedicated sheet tab
