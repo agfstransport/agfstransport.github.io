@@ -1861,7 +1861,8 @@ async function loadData() {
     if (vData.ok) vehicles = vData.data;
     if (dData.ok) drivers  = dData.data;
     if (hData.ok) history  = hData.data;
-    autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history']));
+    autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history',
+      'is_replacement_pool','pool_status','pool_type','pool_start','pool_end','pool_assigned_to','pool_role','pool_linked_plate','covering_for_plate']));
     autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
     dedupeCustomColsByLabel('fleet', vehicles);
     dedupeCustomColsByLabel('driver', drivers);
