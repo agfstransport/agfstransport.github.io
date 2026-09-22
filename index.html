@@ -1375,6 +1375,26 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
   </div>
 </div>
 
+<!-- CLOSE REPLACEMENT TRANSACTION MODAL -->
+<div class="modal-ov" id="closeReplTxModal">
+  <div class="modal" style="min-width:440px;max-width:520px;">
+    <div class="modal-hd"><h2>Close Replacement</h2><button class="m-close" onclick="closeModal('closeReplTxModal')">✕</button></div>
+    <div class="modal-body">
+      <div id="closeReplTxSummary" style="font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.6;"></div>
+      <div class="fg">
+        <label>Actual End Date <span style="color:var(--pink)">*</span></label>
+        <input type="date" id="closeReplTxDate" lang="en-GB">
+        <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Defaults to today — change it if the vehicle was actually returned on a different date.</div>
+      </div>
+      <div id="closeReplTxWarning" style="display:none;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;font-size:12px;margin-top:8px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('closeReplTxModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmCloseReplacementTx()">✓ Confirm & Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- REPLACEMENT TRANSACTION MODAL -->
 <div class="modal-ov" id="replTxModal">
   <div class="modal" style="min-width:480px;max-width:560px;">
@@ -3929,7 +3949,7 @@ function renderReplacementTransactions() {
       <td>${fmtDisplayDate(t.startDate)}</td>
       <td>${endDateLabel(t)}</td>
       <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
-      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="closeReplacementTx('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;">Closed ${t.closedAt?fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
+      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;">Closed ${t.closedAt?fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
     </tr>`).join('');
 
   const summaryEl = document.getElementById('replSummary');
@@ -3968,7 +3988,9 @@ function flagExpiredReplacements() {
   if (changed) saveReplacementTransactions(list);
 }
 
-async function closeReplacementTx(txId) {
+let _closingTxId = null;
+
+function openCloseReplacementModal(txId) {
   // Safety check: if vehicle data hasn't actually finished loading (e.g. still syncing, or a
   // connection hiccup), vehicles.find() below would silently fail to locate anything and this
   // would incorrectly mark the transaction Closed without ever restoring the vehicles. Refuse to
@@ -3977,15 +3999,35 @@ async function closeReplacementTx(txId) {
     alert('⚠️ Vehicle data doesn\'t appear to be fully loaded yet (Fleet Master shows 0 vehicles). Please click Sync, wait for it to finish, and try closing this transaction again — closing now could mark it Closed without actually restoring the vehicles.');
     return;
   }
+  const tx = getReplacementTransactions().find(t => t.id === txId);
+  if (!tx) return;
+  _closingTxId = txId;
+
+  document.getElementById('closeReplTxSummary').innerHTML =
+    `<strong>${tx.mainVehiclePlate}</strong> will return to Fleet Master, and <strong>${tx.replacementPlate}</strong> will go back to the Pool as Available.`;
+
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('closeReplTxDate').value = today;
+
+  const warnEl = document.getElementById('closeReplTxWarning');
+  if (tx.status === 'Active' && tx.endDate && tx.endDate > today) {
+    warnEl.textContent = `⚠ This was originally planned to run until ${fmtDisplayDate(tx.endDate)} — closing early. Adjust the date above if needed.`;
+    warnEl.style.display = 'block';
+  } else {
+    warnEl.style.display = 'none';
+  }
+
+  document.getElementById('closeReplTxModal').classList.add('open');
+}
+
+async function confirmCloseReplacementTx() {
+  const txId = _closingTxId;
   const list = getReplacementTransactions();
   const tx = list.find(t => t.id === txId);
-  if (!tx) return;
-  const today = new Date().toISOString().slice(0,10);
-  const closingEarly = tx.status === 'Active' && (!tx.endDate || tx.endDate > today);
-  const confirmMsg = closingEarly
-    ? `Close this replacement today?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.\n\nThis will record today (${fmtDisplayDate(today)}) as the actual end date, even though it was originally planned for ${tx.endDate ? fmtDisplayDate(tx.endDate) : 'no set end date (Permanent)'}.`
-    : `Close this replacement?\n\n"${tx.mainVehiclePlate}" will return to Fleet Master, and "${tx.replacementPlate}" will go back to the Pool as Available.`;
-  if (!confirm(confirmMsg)) return;
+  if (!tx) { closeModal('closeReplTxModal'); return; }
+
+  const chosenDate = document.getElementById('closeReplTxDate').value;
+  if (!chosenDate) { alert('Please select the actual end date.'); return; }
 
   // ── Reverse the swap FIRST, and only mark the transaction Closed if both vehicles were
   // actually found and restored (or the caller explicitly confirms proceeding anyway) ──
@@ -3998,8 +4040,10 @@ async function closeReplacementTx(txId) {
     if (!confirm(`⚠️ Could not find: ${missing.join(', ')} in current vehicle data.\n\nClosing anyway will mark this transaction Closed WITHOUT restoring the missing vehicle(s) — you'll need to fix that manually afterward.\n\nClose anyway?`)) return;
   }
 
+  closeModal('closeReplTxModal');
+
   tx.status = 'Closed';
-  tx.endDate = today; // the actual end date is always when it was closed, not the originally planned one
+  tx.endDate = chosenDate; // the actual end date, as chosen by the user — not silently forced to today
   tx.closedBy = currentUser?.name || '';
   tx.closedAt = new Date().toISOString();
   saveReplacementTransactions(list);
@@ -4027,6 +4071,7 @@ async function closeReplacementTx(txId) {
   renderFleet();
   showSuccessToast(mv && pv ? '✅ Closed — vehicles swapped back' : '✅ Transaction closed (one or both vehicle records no longer exist)', 4000);
 }
+
 
 function updateReplacementAlertBadge() {
   const expiredCount = getReplacementTransactions().filter(t => t.status === 'Expired').length;
