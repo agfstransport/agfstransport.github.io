@@ -996,6 +996,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         </select></div>
         <div class="fg"><label>Job Code <span style="color:var(--pink)">*</span></label><input type="text" id="v-job_code"></div>
         <div class="fg" id="vfg-assigned_project"><label>Vehicle Assigned Project</label><input type="text" id="v-assigned_project" placeholder="e.g. Project name / Client site"></div>
+        <div class="fg" id="vfg-supervisor"><label>Supervisor</label><input type="text" id="v-supervisor" placeholder="e.g. Supervisor name"></div>
         <div class="fg" id="vfg-gps_rfid"><label>GPS / RFID</label><select id="v-gps_rfid">
           <option value="">— Select —</option>
           <option>GPS</option>
@@ -1339,6 +1340,30 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <div class="fg"><label>Make / Model <span style="color:var(--pink)">*</span></label><input type="text" id="pv-make"></div>
         <div class="fg"><label>Category</label><input type="text" id="pv-category"></div>
         <div class="fg"><label>Own / Rental</label><select id="pv-own"><option value="">— Select —</option><option>Own</option><option>Rental</option><option>Leased</option></select></div>
+        <div class="fg"><label>Owner / Lessor</label><select id="pv-owner">
+          <option value="">— Select Owner —</option>
+          <option>AGFS (Own)</option>
+          <option>Dollar Middle East</option>
+          <option>Class Worldwide</option>
+          <option>Jabal Al Sahra</option>
+          <option>Al Usra Transport</option>
+          <option>Highway Car Rental</option>
+          <option>Mohamed Hareb Gen Transport (Avis)</option>
+          <option>Zahrat Kerman</option>
+          <option>Naoufar Transport</option>
+          <option>Transpotech General Maintenance And Transporting</option>
+          <option>King Apex</option>
+          <option>Belal Transport (Track Run Passenger Transport)</option>
+          <option>Belhasa Euro Star</option>
+          <option>Golden Palace</option>
+          <option>Noor Al Etihad</option>
+          <option>Zoom Line</option>
+          <option>AGP Properties</option>
+          <option>Al Shawar Transport</option>
+          <option>Al Ghurair Industries</option>
+          <option>Tariff Committee</option>
+          <option>Global Direct Renta Car - Sole Proprietorship LLC (Thrifty)</option>
+        </select></div>
         <div class="fg"><label>Region</label><select id="pv-region"><option value="">— Select —</option><option>Dubai</option><option>Abu Dhabi</option><option>Al Ain</option><option>Northern Emirates</option><option>Western Region</option></select></div>
         <div class="fg"><label>Notes</label><input type="text" id="pv-notes"></div>
       </div>
@@ -2677,6 +2702,7 @@ const FLEET_COLS = [
   { key:'contract',    label:'Contract',    def:false },
   { key:'remarks',     label:'Remarks',     def:false },
   { key:'assigned_project', label:'Vehicle Assigned Project', def:true },
+  { key:'supervisor', label:'Supervisor', def:true },
 ];
 
 const DRIVER_COLS = [
@@ -3548,7 +3574,7 @@ async function syncReplacementTxFromSheet() {
 // ── Pool vehicle CRUD ────────────────────────────────────────
 function openPoolVehicleModal(plate) {
   _editingPoolPlate = plate || null;
-  ['plate','make','category','own','region','notes'].forEach(f => { const el=document.getElementById('pv-'+f); if(el) el.value=''; });
+  ['plate','make','category','own','owner','region','notes'].forEach(f => { const el=document.getElementById('pv-'+f); if(el) el.value=''; });
   document.getElementById('poolVehicleModalTitle').textContent = plate ? 'Edit Pool Vehicle' : 'Add Pool Vehicle';
   if (plate) {
     const v = getReplacementPool().find(x => x.plate === plate);
@@ -3557,6 +3583,7 @@ function openPoolVehicleModal(plate) {
       document.getElementById('pv-make').value = v.make || '';
       document.getElementById('pv-category').value = v.category || '';
       document.getElementById('pv-own').value = v.own || '';
+      document.getElementById('pv-owner').value = v.owner || '';
       document.getElementById('pv-region').value = v.region || '';
       document.getElementById('pv-notes').value = v.remarks || '';
     }
@@ -3581,6 +3608,7 @@ async function savePoolVehicle() {
     plate, make,
     category: document.getElementById('pv-category').value.trim(),
     own: document.getElementById('pv-own').value,
+    owner: document.getElementById('pv-owner').value,
     region: document.getElementById('pv-region').value,
     remarks: document.getElementById('pv-notes').value.trim(),
     is_replacement_pool: 'true',
@@ -4047,7 +4075,7 @@ function clearDriverFilters() {
 // ═══════════════════════════════════════════
 // VEHICLE MODAL
 // ═══════════════════════════════════════════
-const vFields = ['plate','reg','make','category','own','owner','portal','monthly_cost','end_user','end_user_id','designation','contract','phone','region','job_code','gps_rfid','utilization','status','remarks','assigned_project'];
+const vFields = ['plate','reg','make','category','own','owner','portal','monthly_cost','end_user','end_user_id','designation','contract','phone','region','job_code','gps_rfid','utilization','status','remarks','assigned_project','supervisor'];
 
 const ADMIN_VEHICLE_FIELDS = ['plate','reg','make','category','own','owner','portal','monthly_cost'];
 const OPS_VEHICLE_FIELDS   = ['status','end_user','end_user_id','designation','phone','region','job_code','gps_rfid','utilization','remarks'];
@@ -4234,7 +4262,7 @@ const FLEET_FIELD_LABELS = {
   end_user:'End User', end_user_id:'End User ID', designation:'Designation',
   contract:'Contract', phone:'Phone', region:'Region', job_code:'Job Code',
   gps_rfid:'GPS/RFID', utilization:'Utilization', status:'Status', remarks:'Remarks',
-  assigned_project:'Vehicle Assigned Project'
+  assigned_project:'Vehicle Assigned Project', supervisor:'Supervisor'
 };
 const DRIVER_FIELD_LABELS = {
   name:'Name', driver_id:'Employee ID', contact:'Contact', vehicle_plate:'Vehicle Plate',
