@@ -1714,7 +1714,7 @@ function startApp() {
   window._notifInterval = setInterval(() => syncNotificationsFromSheet(), 5 * 60 * 1000);
   // Auto-refresh data from Sheet every 5 minutes
   if (window._dataRefreshInterval) clearInterval(window._dataRefreshInterval);
-  window._dataRefreshInterval = setInterval(() => { if (GAS_URL) loadData().then(renderAll); }, 15 * 60 * 1000);
+  window._dataRefreshInterval = setInterval(() => { if (GAS_URL) loadData(!document.getElementById('page-dashboard')?.classList.contains('active')).then(renderAll); }, 15 * 60 * 1000);
 
   renderUsers();
 }
@@ -1866,26 +1866,35 @@ function dedupeCustomColsByLabel(tracker, records) {
   });
 }
 
-async function loadData() {
+async function loadData(skipHistory) {
   loadPersistedData(); // always load local first
   if (!GAS_URL) { renderAll(); return; }
-  syncRequestsFromSheet(); // pull pending approvals from Sheet so admin sees all team submissions
-  await syncFieldConfigFromSheet(); // must finish BEFORE the cleanup below, or a slow pull could overwrite it with stale data
-  syncPermitsFromSheet(); // pull permits from Sheet so all users see same data
-  syncNotificationsFromSheet(); // pull cross-device notifications (e.g. approval results)
-  syncReplacementTxFromSheet(); // pull replacement transactions from their dedicated sheet tab
+  // These four don't affect the custom-column cleanup below, so they can run fully in the
+  // background without anything waiting on them.
+  syncRequestsFromSheet();
+  syncPermitsFromSheet();
+  syncNotificationsFromSheet();
+  syncReplacementTxFromSheet();
   try {
+    // Field config sync runs IN PARALLEL with the main data fetch (not serially before it — that
+    // was adding a whole extra round-trip to every single load). We still explicitly wait for it
+    // here, right alongside the others, so the cleanup below can never run on a stale pull.
+    // History is only fetched when actually needed (initial load, or the Dashboard is open) — it's
+    // only used by Recent Activity, so skipping it on routine background refreshes cuts a full
+    // request out of most refresh cycles.
+    const needHistory = !skipHistory;
     const [vRes, dRes, hRes] = await Promise.all([
       fetchWithTimeout(GAS_URL + '?action=records', {}, 20000),
       fetchWithTimeout(GAS_URL + '?action=drivers', {}, 20000),
-      fetchWithTimeout(GAS_URL + '?action=history', {}, 20000),
+      needHistory ? fetchWithTimeout(GAS_URL + '?action=history', {}, 20000) : Promise.resolve(null),
+      syncFieldConfigFromSheet(),
     ]);
     const vData = await vRes.json();
     const dData = await dRes.json();
-    const hData = await hRes.json();
+    const hData = hRes ? await hRes.json() : null;
     if (vData.ok) vehicles = vData.data;
     if (dData.ok) drivers  = dData.data;
-    if (hData.ok) history  = hData.data;
+    if (hData && hData.ok) history  = hData.data;
     autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history',
       'is_replacement_pool','pool_status','pool_type','pool_start','pool_end','pool_assigned_to','pool_role','pool_linked_plate','covering_for_plate']));
     autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
