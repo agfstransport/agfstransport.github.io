@@ -794,7 +794,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="card-head">
         <h3>📋 Replacement Transactions</h3>
         <div class="spacer"></div>
-        <select id="replTxFilter" onchange="renderReplacementTransactions()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+        <select id="replTxFilter" onchange="replTxPage=1;renderReplacementTransactions()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
           <option value="">All</option>
           <option value="Active">Active</option>
           <option value="Expired">Expired (needs closure)</option>
@@ -811,6 +811,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
           <tbody id="replTxBody"></tbody>
         </table>
         <div class="no-data" id="replTxNoData" style="display:none;">No replacement transactions yet.</div>
+        <div class="pagination" id="replTxPagination" style="padding:10px 16px;"></div>
       </div>
     </div>
 
@@ -819,7 +820,6 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
       <div class="card-head">
         <h3>🚗 Replacement Vehicle Pool</h3>
         <div class="spacer"></div>
-        <button class="btn btn-ghost btn-sm" onclick="repairStuckSwaps()" title="Find and fix any vehicle stuck 'swapped out' whose transaction already shows Closed">🔧 Repair Stuck Swaps</button>
         <select id="replPoolFilter" onchange="renderReplacementPool()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
           <option value="">All Status</option>
           <option value="Available">Available</option>
@@ -1866,6 +1866,7 @@ async function loadData() {
     autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
     dedupeCustomColsByLabel('fleet', vehicles);
     dedupeCustomColsByLabel('driver', drivers);
+    autoRepairStuckSwaps();
     renderAll();
     renderFieldConfigPanel();
   } catch (e) {
@@ -3616,16 +3617,14 @@ async function deletePoolVehicle(plate) {
 // Detects vehicles stuck "swapped out" (pool_role='out_of_service') whose linked transaction is
 // already Closed — this exact inconsistency is what happens if closeReplacementTx ran while
 // vehicle data wasn't fully loaded. Restores them properly, same logic as a normal close.
-async function repairStuckSwaps() {
-  if (!vehicles || vehicles.length === 0) {
-    alert('⚠️ Vehicle data doesn\'t appear to be fully loaded (0 vehicles). Click Sync and wait for it to finish before repairing.');
-    return;
-  }
+// Runs silently on every load — no dialogs, no confirmation. Finds any vehicle stuck "swapped
+// out" whose transaction already shows Closed (the exact inconsistency closeReplacementTx could
+// leave behind if it ran while vehicle data hadn't fully loaded) and restores it automatically.
+async function autoRepairStuckSwaps() {
+  if (!vehicles || vehicles.length === 0) return; // data not loaded yet — nothing to safely check
   const closedTx = getReplacementTransactions().filter(t => t.status === 'Closed');
   const stuck = vehicles.filter(v => v.pool_role === 'out_of_service' && closedTx.some(t => t.mainVehiclePlate === v.plate));
-  if (!stuck.length) { alert('✅ No stuck swaps found — everything looks consistent.'); return; }
-
-  if (!confirm(`Found ${stuck.length} vehicle(s) stuck "swapped out" despite their transaction already showing Closed:\n\n${stuck.map(v=>v.plate).join(', ')}\n\nRestore ${stuck.length > 1 ? 'them' : 'it'} to Fleet Master now?`)) return;
+  if (!stuck.length) return;
 
   for (const mv of stuck) {
     const linkedTx = closedTx.find(t => t.mainVehiclePlate === mv.plate);
@@ -3633,7 +3632,7 @@ async function repairStuckSwaps() {
     delete mv.pool_status; delete mv.pool_role; delete mv.pool_type;
     delete mv.pool_start; delete mv.pool_end; delete mv.pool_linked_plate;
     mv.status = linkedTx?.mainVehiclePriorStatus || mv.status || 'Active';
-    await apiPost({ action:'upsert', record:mv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+    await apiPost({ action:'upsert', record:mv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } }, true);
 
     // Also make sure the replacement vehicle that was covering it is properly back in the pool as Available
     if (linkedTx) {
@@ -3642,17 +3641,17 @@ async function repairStuckSwaps() {
         delete pv.covering_for_plate;
         pv.is_replacement_pool = 'true';
         pv.pool_status = 'Available';
-        await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } });
+        await apiPost({ action:'upsert', record:pv, meta:{ submitterName:currentUser?.name||'', submitterId:currentUser?.id||'' } }, true);
       }
     }
   }
   persistVehicles();
-  logChange('fleet','Updated','REPLACEMENT',`Repaired ${stuck.length} stuck swap(s): ${stuck.map(v=>v.plate).join(', ')}`,[
-    {field:'replacement', label:'Repair Stuck Swaps', oldVal:'Stuck in Pool', newVal:`${stuck.length} vehicle(s) restored to Fleet Master`}
+  logChange('fleet','Updated','REPLACEMENT',`Auto-repaired ${stuck.length} stuck swap(s): ${stuck.map(v=>v.plate).join(', ')}`,[
+    {field:'replacement', label:'Auto-Repair Stuck Swaps', oldVal:'Stuck in Pool', newVal:`${stuck.length} vehicle(s) restored to Fleet Master`}
   ]);
   renderFleet();
   renderReplacementPool();
-  showSuccessToast(`✅ Repaired ${stuck.length} vehicle(s)`, 4000);
+  showSuccessToast(`✅ Auto-fixed ${stuck.length} vehicle(s) stuck in the Replacement Pool`, 4000);
 }
 
 function renderReplacementPool() {
@@ -3834,6 +3833,9 @@ async function saveReplacementTx() {
 }
 
 // ── Transaction list, expiry detection, closure ─────────────
+let replTxPage = 1;
+const REPL_TX_PAGE_SIZE = 10;
+
 function renderReplacementTransactions() {
   const tbody = document.getElementById('replTxBody');
   const noData = document.getElementById('replTxNoData');
@@ -3844,9 +3846,13 @@ function renderReplacementTransactions() {
   let list = allTx;
   if (filter) list = list.filter(t => t.status === filter);
   noData.style.display = list.length ? 'none' : 'block';
+  const totalPages = Math.max(1, Math.ceil(list.length / REPL_TX_PAGE_SIZE));
+  if (replTxPage > totalPages) replTxPage = totalPages;
+  const pageList = list.slice((replTxPage-1)*REPL_TX_PAGE_SIZE, replTxPage*REPL_TX_PAGE_SIZE);
+  renderPagination('replTxPagination', replTxPage, totalPages, 'function(p){replTxPage=p;renderReplacementTransactions()}');
   const statusColor = { Active:'b-active', Expired:'b-termination', Closed:'b-ops' };
   const endDateLabel = t => t.endDate ? fmtDisplayDate(t.endDate) : (t.type === 'Permanent' ? '— (Permanent)' : '— (not set yet)');
-  tbody.innerHTML = list.map(t => `
+  tbody.innerHTML = pageList.map(t => `
     <tr>
       <td><strong>${t.mainVehiclePlate}</strong></td>
       <td>${t.replacementPlate}</td>
@@ -6832,7 +6838,7 @@ function switchTab(tab) {
   if (pg) { pg.style.display = ''; pg.classList.add('active'); }
   if (tab === 'access') { renderFieldConfigPanel(); renderUsers(); renderHistory(); updateApprovalBadge(); }
   if (tab === 'permits') { renderPermits(); }
-  if (tab === 'replacement') { renderReplacementTransactions(); renderReplacementPool(); }
+  if (tab === 'replacement') { autoRepairStuckSwaps(); renderReplacementTransactions(); renderReplacementPool(); }
   if (tab === 'fleet')   { renderFleet(); }
   if (tab === 'drivers') { renderDrivers(); }
 }
