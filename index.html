@@ -1869,20 +1869,46 @@ function dedupeCustomColsByLabel(tracker, records) {
 async function loadData(skipHistory) {
   loadPersistedData(); // always load local first
   if (!GAS_URL) { renderAll(); return; }
-  // These four don't affect the custom-column cleanup below, so they can run fully in the
-  // background without anything waiting on them.
+  const needHistory = !skipHistory;
+
+  try {
+    // Try the consolidated bootstrap request first — one round-trip instead of seven+. Requires
+    // the "bootstrap" action to exist in the Apps Script backend (see setup instructions); if it's
+    // not there yet, this cleanly falls through to the old multi-request method below so nothing
+    // breaks in the meantime.
+    const bRes = await fetchWithTimeout(GAS_URL + '?action=bootstrap&userId=' + encodeURIComponent(currentUser?.id||''), {}, 20000);
+    const bData = await bRes.json();
+    if (bData.ok && bData.data && Array.isArray(bData.data.records)) {
+      const d = bData.data;
+      vehicles = d.records;
+      drivers  = d.drivers || [];
+      if (d.fieldConfigs) applyFieldConfigData(d.fieldConfigs);
+      applyRequestsData(d.requests);
+      applyPermitsData(d.permitsFleet, d.permitsDriver);
+      applyNotificationsData(d.notifications);
+      applyReplacementTxData(d.replacementTx);
+
+      if (needHistory) {
+        try {
+          const hRes = await fetchWithTimeout(GAS_URL + '?action=history', {}, 20000);
+          const hData = await hRes.json();
+          if (hData.ok) history = hData.data;
+        } catch(e) { console.warn('History fetch failed:', e); }
+      }
+
+      finishDataLoad();
+      return;
+    }
+  } catch(e) {
+    console.warn('Bootstrap request failed or not available yet, falling back to individual syncs:', e);
+  }
+
+  // ── Fallback: the old multi-request method, used only if bootstrap isn't set up yet ──
   syncRequestsFromSheet();
   syncPermitsFromSheet();
   syncNotificationsFromSheet();
   syncReplacementTxFromSheet();
   try {
-    // Field config sync runs IN PARALLEL with the main data fetch (not serially before it — that
-    // was adding a whole extra round-trip to every single load). We still explicitly wait for it
-    // here, right alongside the others, so the cleanup below can never run on a stale pull.
-    // History is only fetched when actually needed (initial load, or the Dashboard is open) — it's
-    // only used by Recent Activity, so skipping it on routine background refreshes cuts a full
-    // request out of most refresh cycles.
-    const needHistory = !skipHistory;
     const [vRes, dRes, hRes] = await Promise.all([
       fetchWithTimeout(GAS_URL + '?action=records', {}, 20000),
       fetchWithTimeout(GAS_URL + '?action=drivers', {}, 20000),
@@ -1895,19 +1921,23 @@ async function loadData(skipHistory) {
     if (vData.ok) vehicles = vData.data;
     if (dData.ok) drivers  = dData.data;
     if (hData && hData.ok) history  = hData.data;
-    autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history',
-      'is_replacement_pool','pool_status','pool_type','pool_start','pool_end','pool_assigned_to','pool_role','pool_linked_plate','covering_for_plate']));
-    autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
-    dedupeCustomColsByLabel('fleet', vehicles);
-    dedupeCustomColsByLabel('driver', drivers);
-    autoRepairStuckSwaps();
-    renderAll();
-    renderFieldConfigPanel();
+    finishDataLoad();
   } catch (e) {
     console.warn('API error, using local data:', e);
     renderAll();
     showSuccessToast('⚠️ Could not reach Google Sheet — showing last saved data. Check your connection.', 5000);
   }
+}
+
+function finishDataLoad() {
+  autoDetectCustomCols('fleet',  vehicles, new Set([...FLEET_COLS.map(c=>c.key), 'fuel_history',
+    'is_replacement_pool','pool_status','pool_type','pool_start','pool_end','pool_assigned_to','pool_role','pool_linked_plate','covering_for_plate']));
+  autoDetectCustomCols('driver', drivers,  new Set(DRIVER_COLS.map(c=>c.key)));
+  dedupeCustomColsByLabel('fleet', vehicles);
+  dedupeCustomColsByLabel('driver', drivers);
+  autoRepairStuckSwaps();
+  renderAll();
+  renderFieldConfigPanel();
 }
 
 // Any key present in the actual synced records that isn't a known base field gets auto-registered
@@ -3569,14 +3599,16 @@ function saveReplacementTransactions(list) {
   }
 }
 
+function applyReplacementTxData(data) {
+  if (Array.isArray(data)) localStorage.setItem('agfsReplacementTx', JSON.stringify(data));
+}
+
 async function syncReplacementTxFromSheet() {
   if (!GAS_URL) return;
   try {
     const r = await fetchWithTimeout(GAS_URL + '?action=replacement_tx', {}, 15000);
     const j = await r.json();
-    if (j.ok && Array.isArray(j.data)) {
-      localStorage.setItem('agfsReplacementTx', JSON.stringify(j.data));
-    }
+    if (j.ok) applyReplacementTxData(j.data);
   } catch(e) { console.warn('Replacement transactions sync failed (backend action may not be added yet):', e); }
 }
 
@@ -5110,43 +5142,45 @@ function syncFieldConfigToSheet() {
 }
 
 // Pull field configs from Sheet on login/sync
+function applyFieldConfigData(data) {
+  if (!data) return;
+  ['fleet','driver','permit'].forEach(t => {
+    if (data[t]) localStorage.setItem('agfsFC_' + t, JSON.stringify(data[t]));
+  });
+  if (data.customCols) {
+    ['fleet','driver'].forEach(t => {
+      if (data.customCols[t]) localStorage.setItem('agfsCustomCols_' + t, JSON.stringify(data.customCols[t]));
+    });
+  }
+  if (data.removedBaseCols) {
+    ['fleet','driver'].forEach(t => {
+      if (data.removedBaseCols[t]) localStorage.setItem('agfsRemovedBaseCols_' + t, JSON.stringify(data.removedBaseCols[t]));
+    });
+  }
+  if (data.removedCustomCols) {
+    ['fleet','driver'].forEach(t => {
+      if (data.removedCustomCols[t]) localStorage.setItem('agfsRemovedCustomCols_' + t, JSON.stringify(data.removedCustomCols[t]));
+    });
+  }
+  if (typeof data.vehicleIdCounter === 'number') {
+    const local = getVehicleIdCounter();
+    localStorage.setItem('agfsVehicleIdCounter', String(Math.max(local, data.vehicleIdCounter)));
+  }
+  if (Array.isArray(data.replacementTx)) {
+    localStorage.setItem('agfsReplacementTx', JSON.stringify(data.replacementTx));
+  }
+  applyFieldConfigs();
+  if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
+  if (typeof renderDrivers === 'function' && document.getElementById('page-drivers')?.classList.contains('active')) renderDrivers();
+  if (typeof renderReplacementTransactions === 'function' && document.getElementById('page-replacement')?.classList.contains('active')) { renderReplacementTransactions(); renderReplacementPool(); }
+}
+
 async function syncFieldConfigFromSheet() {
   if (!GAS_URL) return;
   try {
     const r = await fetch(GAS_URL + '?action=field_configs');
     const j = await r.json();
-    if (j.ok && j.data) {
-      ['fleet','driver','permit'].forEach(t => {
-        if (j.data[t]) localStorage.setItem('agfsFC_' + t, JSON.stringify(j.data[t]));
-      });
-      if (j.data.customCols) {
-        ['fleet','driver'].forEach(t => {
-          if (j.data.customCols[t]) localStorage.setItem('agfsCustomCols_' + t, JSON.stringify(j.data.customCols[t]));
-        });
-      }
-      if (j.data.removedBaseCols) {
-        ['fleet','driver'].forEach(t => {
-          if (j.data.removedBaseCols[t]) localStorage.setItem('agfsRemovedBaseCols_' + t, JSON.stringify(j.data.removedBaseCols[t]));
-        });
-      }
-      if (j.data.removedCustomCols) {
-        ['fleet','driver'].forEach(t => {
-          if (j.data.removedCustomCols[t]) localStorage.setItem('agfsRemovedCustomCols_' + t, JSON.stringify(j.data.removedCustomCols[t]));
-        });
-      }
-      if (typeof j.data.vehicleIdCounter === 'number') {
-        // Always keep the higher value — no device can ever hand out a duplicate/lower Vehicle ID after pulling.
-        const local = getVehicleIdCounter();
-        localStorage.setItem('agfsVehicleIdCounter', String(Math.max(local, j.data.vehicleIdCounter)));
-      }
-      if (Array.isArray(j.data.replacementTx)) {
-        localStorage.setItem('agfsReplacementTx', JSON.stringify(j.data.replacementTx));
-      }
-      applyFieldConfigs();
-      if (typeof renderFleet === 'function' && document.getElementById('page-fleet')?.classList.contains('active')) renderFleet();
-      if (typeof renderDrivers === 'function' && document.getElementById('page-drivers')?.classList.contains('active')) renderDrivers();
-      if (typeof renderReplacementTransactions === 'function' && document.getElementById('page-replacement')?.classList.contains('active')) { renderReplacementTransactions(); renderReplacementPool(); }
-    }
+    if (j.ok && j.data) applyFieldConfigData(j.data);
   } catch(e) { console.warn('Field config sync failed:', e); }
 }
 
@@ -5308,6 +5342,11 @@ function savePermits(type, data) {
   if (GAS_URL) apiPost({ action: 'save_permits', permitType: type, permits: data });
 }
 
+function applyPermitsData(fleetData, driverData) {
+  if (Array.isArray(fleetData))  localStorage.setItem('agfsPermits_fleet',  JSON.stringify(fleetData));
+  if (Array.isArray(driverData)) localStorage.setItem('agfsPermits_driver', JSON.stringify(driverData));
+}
+
 async function syncPermitsFromSheet() {
   if (!GAS_URL) return;
   try {
@@ -5317,8 +5356,7 @@ async function syncPermitsFromSheet() {
     ]);
     const fj = await fRes.json();
     const dj = await dRes.json();
-    if (fj.ok && Array.isArray(fj.data)) localStorage.setItem('agfsPermits_fleet',  JSON.stringify(fj.data));
-    if (dj.ok && Array.isArray(dj.data)) localStorage.setItem('agfsPermits_driver', JSON.stringify(dj.data));
+    applyPermitsData(fj.ok ? fj.data : null, dj.ok ? dj.data : null);
   } catch(e) { console.warn('Permit sync failed:', e); }
 }
 
@@ -5589,25 +5627,32 @@ function saveRequests(data)  {
   if (GAS_URL) apiPost({ action:'save_requests', requests: data });
 }
 
+function applyNotificationsData(data) {
+  if (!currentUser || !Array.isArray(data) || !data.length) return;
+  const existing = getNotifications(currentUser.id);
+  const existingIds = new Set(existing.map(n => n.id));
+  const newOnes = data.filter(n => !existingIds.has(n.id));
+  if (newOnes.length) {
+    const merged = [...newOnes, ...existing].slice(0, 50);
+    saveNotifications(currentUser.id, merged);
+    updateNotifBadge();
+    apiPost({ action:'clear_notifications', userId: currentUser.id }, true);
+  }
+}
+
 async function syncNotificationsFromSheet() {
   if (!GAS_URL || !currentUser) return;
   try {
     const r = await fetch(GAS_URL + '?action=get_notifications&userId=' + encodeURIComponent(currentUser.id));
     const j = await r.json();
-    if (j.ok && Array.isArray(j.data) && j.data.length) {
-      // Merge new notifications into local storage
-      const existing = getNotifications(currentUser.id);
-      const existingIds = new Set(existing.map(n => n.id));
-      const newOnes = j.data.filter(n => !existingIds.has(n.id));
-      if (newOnes.length) {
-        const merged = [...newOnes, ...existing].slice(0, 50);
-        saveNotifications(currentUser.id, merged);
-        updateNotifBadge();
-        // Clear them from the Sheet now that we've received them
-        apiPost({ action:'clear_notifications', userId: currentUser.id }, true);
-      }
-    }
+    if (j.ok) applyNotificationsData(j.data);
   } catch(e) { console.warn('Notification sync failed:', e); }
+}
+
+function applyRequestsData(data) {
+  if (!Array.isArray(data)) return;
+  localStorage.setItem('agfsRequests', JSON.stringify(data));
+  updateApprovalBadge();
 }
 
 async function syncRequestsFromSheet() {
@@ -5615,10 +5660,7 @@ async function syncRequestsFromSheet() {
   try {
     const r = await fetch(GAS_URL + '?action=requests');
     const j = await r.json();
-    if (j.ok && Array.isArray(j.data)) {
-      localStorage.setItem('agfsRequests', JSON.stringify(j.data));
-      updateApprovalBadge();
-    }
+    if (j.ok) applyRequestsData(j.data);
   } catch(e) { console.warn('Requests sync failed:', e); }
 }
 
