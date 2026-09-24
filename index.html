@@ -797,6 +797,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <select id="replTxFilter" onchange="replTxPage=1;renderReplacementTransactions()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
           <option value="">All</option>
           <option value="Active">Active</option>
+          <option value="Permanent">Permanent</option>
           <option value="Expired">Expired (needs closure)</option>
           <option value="Closed">Closed</option>
         </select>
@@ -3094,7 +3095,7 @@ function getFilteredFleet() {
   const regExpCols = (dashboardQuickFilter?.scope === 'fleet-reg') ? getCustomCols('fleet').filter(c => /reg|mulkiya/i.test(c.label) && /exp/i.test(c.label)) : [];
   return vehicles.filter(v => {
     if (v.is_replacement_pool === 'true') return false; // pool vehicles live in their own tab, not Fleet Master
-    if (fleetShowReplOnly && !getReplacementTransactions().some(t => t.status==='Active' && t.replacementPlate===v.plate)) return false;
+    if (fleetShowReplOnly && !getReplacementTransactions().some(t => (t.status==='Active'||t.status==='Permanent') && t.replacementPlate===v.plate)) return false;
     if (!matchMsel('status', v.status)) return false;
     if (!matchMsel('category', v.category)) return false;
     if (!matchMsel('own', v.own)) return false;
@@ -3145,7 +3146,7 @@ function renderFleet() {
   }
 
   const pendingStatusPlates = new Set(getRequests().filter(r => r.type==='status_fleet' && (r.status==='pending_manager'||r.status==='pending_admin')).map(r=>r.data?.plate));
-  const activeReplByReplacement = new Map(getReplacementTransactions().filter(t => t.status==='Active').map(t => [t.replacementPlate, t]));
+  const activeReplByReplacement = new Map(getReplacementTransactions().filter(t => t.status==='Active'||t.status==='Permanent').map(t => [t.replacementPlate, t]));
   const getCellVal = (v, key) => {
     if (key==='status') {
       const pendingTag = pendingStatusPlates.has(v.plate) ? ` <span class="badge b-maint" title="Status change request pending approval">⏳ Pending</span>` : '';
@@ -3873,7 +3874,7 @@ async function saveReplacementTx() {
     replacementPlate: replPlate,
     type: replType,
     startDate, endDate: replType === 'Permanent' ? '' : endDate,
-    status: 'Active',
+    status: replType === 'Permanent' ? 'Permanent' : 'Active',
     createdBy: currentUser?.name || '', createdById: currentUser?.id || '', createdAt: new Date().toISOString(),
     closedBy: '', closedAt: '',
   };
@@ -3942,7 +3943,7 @@ function renderReplacementTransactions() {
   if (replTxPage > totalPages) replTxPage = totalPages;
   const pageList = list.slice((replTxPage-1)*REPL_TX_PAGE_SIZE, replTxPage*REPL_TX_PAGE_SIZE);
   renderPagination('replTxPagination', replTxPage, totalPages, 'function(p){replTxPage=p;renderReplacementTransactions()}');
-  const statusColor = { Active:'b-active', Expired:'b-termination', Closed:'b-ops' };
+  const statusColor = { Active:'b-active', Permanent:'b-deployed', Expired:'b-termination', Closed:'b-ops' };
   const endDateLabel = t => t.endDate ? fmtDisplayDate(t.endDate) : (t.type === 'Permanent' ? '— (Permanent)' : '— (not set yet)');
   tbody.innerHTML = pageList.map(t => `
     <tr>
@@ -3953,7 +3954,7 @@ function renderReplacementTransactions() {
       <td>${endDateLabel(t)}</td>
       <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
       <td title="${t.createdById ? 'User ID: '+t.createdById : ''}">${t.createdBy||'—'}</td>
-      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;" title="${t.closedById?'User ID: '+t.closedById:''}">Closed by ${t.closedBy||'—'}${t.closedAt?', '+fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
+      <td>${t.status === 'Permanent' ? `<span style="font-size:11px;color:#94a3b8;">Permanently assigned</span>` : t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;" title="${t.closedById?'User ID: '+t.closedById:''}">Closed by ${t.closedBy||'—'}${t.closedAt?', '+fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
     </tr>`).join('');
 
   const summaryEl = document.getElementById('replSummary');
