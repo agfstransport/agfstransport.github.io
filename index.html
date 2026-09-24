@@ -3937,7 +3937,10 @@ function renderReplacementTransactions() {
   const filter = document.getElementById('replTxFilter')?.value || '';
   const allTx = getReplacementTransactions();
   let list = allTx;
-  if (filter) list = list.filter(t => t.status === filter);
+  if (filter) list = list.filter(t => {
+    const effStatus = (t.type === 'Permanent' && t.status !== 'Closed') ? 'Permanent' : t.status;
+    return effStatus === filter;
+  });
   noData.style.display = list.length ? 'none' : 'block';
   const totalPages = Math.max(1, Math.ceil(list.length / REPL_TX_PAGE_SIZE));
   if (replTxPage > totalPages) replTxPage = totalPages;
@@ -3945,21 +3948,27 @@ function renderReplacementTransactions() {
   renderPagination('replTxPagination', replTxPage, totalPages, 'function(p){replTxPage=p;renderReplacementTransactions()}');
   const statusColor = { Active:'b-active', Permanent:'b-deployed', Expired:'b-termination', Closed:'b-ops' };
   const endDateLabel = t => t.endDate ? fmtDisplayDate(t.endDate) : (t.type === 'Permanent' ? '— (Permanent)' : '— (not set yet)');
-  tbody.innerHTML = pageList.map(t => `
+  tbody.innerHTML = pageList.map(t => {
+    // Any Permanent-type transaction that hasn't been explicitly Closed is effectively "Permanent"
+    // for display purposes — this covers transactions created before this distinction existed too,
+    // not just new ones, without needing any data migration.
+    const effStatus = (t.type === 'Permanent' && t.status !== 'Closed') ? 'Permanent' : t.status;
+    return `
     <tr>
       <td><strong>${t.mainVehiclePlate}</strong></td>
       <td>${t.replacementPlate}</td>
       <td>${t.type}</td>
       <td>${fmtDisplayDate(t.startDate)}</td>
       <td>${endDateLabel(t)}</td>
-      <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
+      <td><span class="badge ${statusColor[effStatus]||'b-ops'}">${effStatus}</span></td>
       <td title="${t.createdById ? 'User ID: '+t.createdById : ''}">${t.createdBy||'—'}</td>
-      <td>${t.status === 'Permanent' ? `<span style="font-size:11px;color:#94a3b8;">Permanently assigned</span>` : t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;" title="${t.closedById?'User ID: '+t.closedById:''}">Closed by ${t.closedBy||'—'}${t.closedAt?', '+fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
-    </tr>`).join('');
+      <td>${effStatus === 'Permanent' ? `<span style="font-size:11px;color:#94a3b8;">Permanently assigned</span>` : t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;" title="${t.closedById?'User ID: '+t.closedById:''}">Closed by ${t.closedBy||'—'}${t.closedAt?', '+fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
+    </tr>`;
+  }).join('');
 
   const summaryEl = document.getElementById('replSummary');
   if (summaryEl) {
-    const active = allTx.filter(t=>t.status==='Active').length;
+    const active = allTx.filter(t=>t.status==='Active' && t.type!=='Permanent').length;
     const expired = allTx.filter(t=>t.status==='Expired').length;
     const closed = allTx.filter(t=>t.status==='Closed').length;
     const temp = allTx.filter(t=>t.type==='Temporary' && t.status!=='Closed').length;
