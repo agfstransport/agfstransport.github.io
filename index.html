@@ -806,7 +806,7 @@ tr.row-replacement:hover td{background:#d4f5dc !important;}
         <table>
           <thead><tr>
             <th>Main Vehicle</th><th>Replacement Vehicle</th><th>Type</th>
-            <th>Start Date</th><th>End Date</th><th>Status</th><th>Actions</th>
+            <th>Start Date</th><th>End Date</th><th>Status</th><th>Created By</th><th>Actions</th>
           </tr></thead>
           <tbody id="replTxBody"></tbody>
         </table>
@@ -3749,6 +3749,9 @@ function renderReplacementPool() {
   if (!tbody) return;
   const filter = document.getElementById('replPoolFilter')?.value || '';
   let pool = getReplacementPool();
+  // A Permanently swapped-out Main Vehicle isn't meant to be browsable here — its whole story
+  // lives in the Transaction record alone, not in a pool table meant for available/temporary items.
+  pool = pool.filter(v => !(v.pool_role === 'out_of_service' && v.pool_type === 'Permanent'));
   if (filter) pool = pool.filter(v => v.pool_status === filter);
   noData.style.display = pool.length ? 'none' : 'block';
   const statusColor = { Available:'b-active', Assigned:'b-maint', Expired:'b-termination' };
@@ -3871,7 +3874,7 @@ async function saveReplacementTx() {
     type: replType,
     startDate, endDate: replType === 'Permanent' ? '' : endDate,
     status: 'Active',
-    createdBy: currentUser?.name || '', createdAt: new Date().toISOString(),
+    createdBy: currentUser?.name || '', createdById: currentUser?.id || '', createdAt: new Date().toISOString(),
     closedBy: '', closedAt: '',
   };
 
@@ -3949,7 +3952,8 @@ function renderReplacementTransactions() {
       <td>${fmtDisplayDate(t.startDate)}</td>
       <td>${endDateLabel(t)}</td>
       <td><span class="badge ${statusColor[t.status]||'b-ops'}">${t.status}</span></td>
-      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;">Closed ${t.closedAt?fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
+      <td title="${t.createdById ? 'User ID: '+t.createdById : ''}">${t.createdBy||'—'}</td>
+      <td>${t.status !== 'Closed' ? `<button class="btn btn-ghost btn-xs" onclick="openCloseReplacementModal('${t.id}')">✓ Close & Return to Pool</button>` : `<span style="font-size:11px;color:#94a3b8;" title="${t.closedById?'User ID: '+t.closedById:''}">Closed by ${t.closedBy||'—'}${t.closedAt?', '+fmtDisplayDateTime(t.closedAt):''}</span>`}</td>
     </tr>`).join('');
 
   const summaryEl = document.getElementById('replSummary');
@@ -4045,6 +4049,7 @@ async function confirmCloseReplacementTx() {
   tx.status = 'Closed';
   tx.endDate = chosenDate; // the actual end date, as chosen by the user — not silently forced to today
   tx.closedBy = currentUser?.name || '';
+  tx.closedById = currentUser?.id || '';
   tx.closedAt = new Date().toISOString();
   saveReplacementTransactions(list);
 
