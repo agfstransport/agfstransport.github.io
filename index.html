@@ -3609,13 +3609,16 @@ function getReplacementPool() { return vehicles.filter(v => v.is_replacement_poo
 function getReplacementTransactions() {
   try { return JSON.parse(localStorage.getItem('agfsReplacementTx') || '[]'); } catch(e) { return []; }
 }
-function saveReplacementTransactions(list) {
+function saveReplacementTransactions(list, changedEntries) {
   localStorage.setItem('agfsReplacementTx', JSON.stringify(list));
   if (GAS_URL) {
-    apiPost({ action:'save_replacement_tx', transactions:list }, true).then(result => {
-      // Falls back to the old shared config channel only if the new backend action isn't set up yet,
-      // so nothing is lost while you're still adding the Apps Script code.
-      if (!result || !result.ok) syncFieldConfigToSheet();
+    // Sync ONLY the entries that actually changed, upserted individually by id — never a full
+    // clear+rewrite of the sheet. This is what makes it safe even when this session's local list
+    // is stale relative to other devices: an upsert-by-id can only ever touch its own row, so a
+    // stale cache can never accidentally delete a transaction another session created.
+    const toSync = changedEntries || list;
+    toSync.forEach(tx => {
+      apiPost({ action:'save_replacement_tx_entry', transaction: tx }, true);
     });
   }
 }
@@ -3911,7 +3914,7 @@ async function saveReplacementTx() {
 
   const txList = getReplacementTransactions();
   txList.unshift(tx);
-  saveReplacementTransactions(txList);
+  saveReplacementTransactions(txList, [tx]);
 
   logChange('fleet','Updated','REPLACEMENT',`${mainPlate} ↔ ${replPlate} (${replType})`,[
     {field:'replacement', label:'Replacement Created', oldVal:'', newVal:`${replPlate} swapped in to cover ${mainPlate} (now in Pool), ${replType}${tx.endDate?' until '+fmtDisplayDate(tx.endDate):''}`}
@@ -3992,14 +3995,14 @@ function renderReplacementTransactions() {
 function flagExpiredReplacements() {
   const today = new Date(); today.setHours(0,0,0,0);
   const list = getReplacementTransactions();
-  let changed = false;
+  const changedEntries = [];
   list.forEach(t => {
     if (t.status === 'Active' && t.type === 'Temporary' && t.endDate) {
       const end = new Date(toISODate(t.endDate));
-      if (end < today) { t.status = 'Expired'; changed = true; }
+      if (end < today) { t.status = 'Expired'; changedEntries.push(t); }
     }
   });
-  if (changed) saveReplacementTransactions(list);
+  if (changedEntries.length) saveReplacementTransactions(list, changedEntries);
 }
 
 let _closingTxId = null;
@@ -4061,7 +4064,7 @@ async function confirmCloseReplacementTx() {
   tx.closedBy = currentUser?.name || '';
   tx.closedById = currentUser?.id || '';
   tx.closedAt = new Date().toISOString();
-  saveReplacementTransactions(list);
+  saveReplacementTransactions(list, [tx]);
 
   if (mv) {
     delete mv.is_replacement_pool;
